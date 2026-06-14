@@ -1,0 +1,10 @@
+/* File: main.c
+ * -------------
+ * This is the main global C file that will contain the main function to be executed.
+ */
+
+#include "board.c"
+
+int main(int argc, char *argv[]) {
+    return 0;
+}
