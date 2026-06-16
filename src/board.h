@@ -15,24 +15,39 @@
 
 /* DEFINITIONS */
 
+#define NUM_SQUARES 64
+#define SIDE_LEN 8
+#define NUM_PIECES 6
+#define NUM_SIDES 2
+
 // For indexing in the bitboards
-#define WHITE 0
-#define BLACK 1
+typedef enum {
+    WHITE,
+    BLACK
+} side;
 
-// A bitboard type is simply an unsigned 64-bit integer.
-typedef uint64_t bitboard;
+typedef enum {
+    PAWN,
+    KNIGHT,
+    BISHOP,
+    ROOK,
+    QUEEN,
+    KING
+} piece_t;
 
-/* The board struct contains 12 bitboards total: each piece member of the struct
- * is an array of 2 bitboards, with the zero index representing white and the one
- * index representing black.
+/* The bitboard struct contains the associated piece type, side, and its value. */
+typedef struct {
+    piece_t piece;
+    side side;
+    uint64_t value;
+} bitboard;
+
+/* The board struct contains 12 bitboards total, with the first dimension being the
+ * associated piece indexed via piece_t, and the second dimension being the associated
+ * side indexed via side.
  */
 typedef struct {
-    bitboard pawns[2];
-    bitboard knights[2];
-    bitboard bishops[2];
-    bitboard rooks[2];
-    bitboard queens[2];
-    bitboard kings[2];
+    bitboard bitboards[NUM_PIECES][NUM_SIDES];
 } board;
 
 /* FUNCTION PROTOTYPES */
@@ -55,16 +70,33 @@ void clear_bit(bitboard *bb, int square);
 
 /* Function: get_bit
  * ------------------
- * The `get_bit` function takes in a pointer to a bitboard and an int square
- * and returns the value of the bit corresponding to the square (using LERF-mapping)
- * of the bitboard via a boolean value.
+ * The `get_bit` function takes in a bitboard and an int square and returns the
+ * value of the bit corresponding to the square (using LERF-mapping) of the bitboard
+ * via a boolean value.
  */
-bool get_bit(bitboard *bb, int square);
+bool get_bit(bitboard bb, int square);
+
+/* Function: get_bitboard_from_square
+ * -----------------------------------
+ * The `get_bitboard_from_square` function takes in a valid `square` value and outputs
+ * the corresponding bitboard from `board` that holds a piece on that square. Returns NULL
+ * if no such bitboard is found.
+ */
+bitboard *get_bitboard_from_square(board *b, int square);
+
+/* Function: get_bitboard_from_ascii
+ * ----------------------------------
+ * The `get_bitboard_from_ascii` function takes in an ASCII representation of a piece
+ * `piece_c` and outputs the corresponding pointer to the bitboard from `board`, or NULL
+ * if piece_c is invalid.
+ */
+bitboard *get_bitboard_from_ascii(board *b, char piece_c);
 
 /* Function: print_board
  * ----------------------
  * The `print_board` function takes in a pointer to a board struct and prints out
- * an ASCII representation of the board state.
+ * an ASCII representation of the board state. White pieces will print in uppercase
+ * letters while black pieces will print in lowercase.
  */
 void print_board(board *b);
 
@@ -78,7 +110,7 @@ void parse_fen(board *b, char *fen);
 /* Function: initialize_board
  * ---------------------------
  * The initialize_board takes in a pointer to a board struct and initializes
- * the board to the starting position for standard chess.
+ * the board to a cleared position.
  */
 void initialize_board(board *b);
 
