@@ -19,6 +19,8 @@
 #define SIDE_LEN 8
 #define NUM_PIECES 6
 #define NUM_SIDES 2
+#define NUM_CASTLES 4
+#define NO_EN_PASSANT -1
 
 // For indexing in the bitboards
 typedef enum {
@@ -35,19 +37,32 @@ typedef enum {
     KING
 } piece_t;
 
-/* The bitboard struct contains the associated piece type, side, and its value. */
-typedef struct {
-    piece_t piece;
-    side side;
-    uint64_t value;
-} bitboard;
+/* The bitboard struct is simply a 64-bit bit array. */
+typedef uint64_t bitboard;
 
-/* The board struct contains 12 bitboards total, with the first dimension being the
+/* The board struct contains 12 piece bitboards total, with the first dimension being the
  * associated piece indexed via piece_t, and the second dimension being the associated
  * side indexed via side.
+ *
+ * `play_side` specifies whose turn it currently is.
+ *
+ * `en_passant_square` specifies the square that is capturable via en passant, or -1 if
+ * there is no such square.
+ *
+ * `castling` is a 4-bit bitarray specifying whether can White can castle kingside, White
+ * can castle queenside, Black can castle kingside, and Black can castle queenside, respectively.
+ *
+ * `halfmove_clock` specifies a decimal number of half moves with respect to the 50 move draw rule.
+ *
+ * `fullmove_counter` specifies the number of full turns in the game.
  */
 typedef struct {
-    bitboard bitboards[NUM_PIECES][NUM_SIDES];
+    bitboard piece_bbs[NUM_PIECES][NUM_SIDES];
+    side play_side;
+    int en_passant_square;
+    unsigned char castling;
+    unsigned int halfmove_clock;
+    unsigned int fullmove_counter;
 } board;
 
 /* FUNCTION PROTOTYPES */
@@ -81,8 +96,10 @@ bool get_bit(bitboard bb, int square);
  * The `get_bitboard_from_square` function takes in a valid `square` value and outputs
  * the corresponding bitboard from `board` that holds a piece on that square. Returns NULL
  * if no such bitboard is found.
+ *
+ * If p and s are valid, they become populated with the bitboard's associated piece/side.
  */
-bitboard *get_bitboard_from_square(board *b, int square);
+bitboard *get_bitboard_from_square(board *b, int square, piece_t *p, side *s);
 
 /* Function: get_bitboard_from_ascii
  * ----------------------------------

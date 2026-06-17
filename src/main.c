@@ -5,11 +5,21 @@
 
 #include "board.h"
 
+#define INIT_POS "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
 int main(int argc, char *argv[]) {
-    char *fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+    char *fen;
     board board;
+    
+    if (argc > 1) {
+        fen = argv[1];
+    } else {
+        fen = INIT_POS;
+    }
+    
     initialize_board(&board);
     parse_fen(&board, fen);
     print_board(&board);
+
     return 0;
 }
