@@ -59,7 +59,7 @@ typedef uint64_t bitboard;
 typedef struct {
     bitboard piece_bbs[NUM_PIECES][NUM_SIDES];
     side play_side;
-    int en_passant_square;
+    int ep_square;
     unsigned char castling;
     unsigned int halfmove_clock;
     unsigned int fullmove_counter;
@@ -116,13 +116,6 @@ bitboard *get_bitboard_from_ascii(board *b, char piece_c);
  * letters while black pieces will print in lowercase.
  */
 void print_board(board *b);
-
-/* Function: parse_fen
- * --------------------
- * The `parse_fen` function takes in a pointer to a board struct and an encoded
- * FEN string and sets the board struct to align with the FEN values.
- */
-void parse_fen(board *b, char *fen);
 
 /* Function: initialize_board
  * ---------------------------
