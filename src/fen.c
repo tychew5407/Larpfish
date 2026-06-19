@@ -57,10 +57,12 @@ static void parse_pieces(board *b, char *pieces_str) {
             continue;
         }
 
-        bitboard *cur_bb = get_bitboard_from_ascii(b, pieces_str[i]);
+        side cur_side;
+        bitboard *cur_bb = get_bitboard_from_ascii(b, pieces_str[i], &cur_side);
 
         if (cur_bb) {
             set_bit(cur_bb, square);
+            set_bit(&(b->occupied_bbs[cur_side]), square);
             square ++;
         } else {
             square += pieces_str[i] - '0';
@@ -169,11 +171,11 @@ static void encode_ep(board *b, char **fen) {
         return;
     }
 
-    char rank_ch = 'a' + (b->ep_square % SIDE_LEN);
-    char file_ch = '1' + (b->ep_square / SIDE_LEN);
+    char file_ch = 'a' + get_file(b->ep_square);
+    char rank_ch = '1' + get_rank(b->ep_square);
 
-    strncat(*fen, &rank_ch, 1);
     strncat(*fen, &file_ch, 1);
+    strncat(*fen, &rank_ch, 1);
 }
 
 static void encode_halfmove(board *b, char **fen) {
