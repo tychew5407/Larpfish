@@ -18,6 +18,9 @@
 /* DEFINITIONS */
 
 #define NO_EN_PASSANT -1 // Sentinel flag for ep_square
+#define CASTLE_ARR_START (1 << 3) // Mask to access start of castling bitarray
+#define ROOK_KING_CASTLE 5 // To-squares for rooks upon king/queen castling (for white).
+#define ROOK_QUEEN_CASTLE 3
 
 /* The bitboard struct is simply a 64-bit bit array. */
 typedef uint64_t bitboard;

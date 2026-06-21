@@ -20,6 +20,9 @@
 #define VERT_SHIFT_POWER 3 // VERT_SHIFT log 2
 #define HORIZ_SHIFT 1
 
+/* SEARCH CONSTANTS */
+#define MAX_PLY 128
+
 /* PIECE ENUMS */
 typedef enum {
     WHITE,
