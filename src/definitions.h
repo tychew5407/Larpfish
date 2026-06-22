@@ -14,6 +14,15 @@
 #define NUM_PIECES 6
 #define NUM_SIDES 2
 #define NUM_CASTLES 4
+#define NUM_PROMOS 4
+
+// Bit masks for relevant ranks/files
+#define RANK_1 0xFF
+#define RANK_4 0xFF000000
+#define RANK_5 0xFF00000000
+#define RANK_8 0xFF00000000000000
+#define FILE_A 0x0101010101010101
+#define FILE_H 0x8080808080808080
 
 /* SHIFT CONSTANTS */
 #define VERT_SHIFT 8
@@ -21,6 +30,7 @@
 #define HORIZ_SHIFT 1
 
 /* SEARCH CONSTANTS */
+#define MAX_MOVES 218
 #define MAX_PLY 128
 
 /* PIECE ENUMS */

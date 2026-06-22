@@ -13,17 +13,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "definitions.h"
+#include "bitboard.h"
 #include "move.h"
 
 /* DEFINITIONS */
 
 #define NO_EN_PASSANT -1 // Sentinel flag for ep_square
 #define CASTLE_ARR_START (1 << 3) // Mask to access start of castling bitarray
-#define ROOK_KING_CASTLE 5 // To-squares for rooks upon king/queen castling (for white).
-#define ROOK_QUEEN_CASTLE 3
-
-/* The bitboard struct is simply a 64-bit bit array. */
-typedef uint64_t bitboard;
 
 /* The board struct contains 12 piece bitboards total, with the first dimension being the
  * associated piece indexed via piece_t, and the second dimension being the associated
@@ -53,43 +49,20 @@ typedef struct {
 
 /* FUNCTION PROTOTYPES */
 
-/* Function: set_bit
- * ------------------
- * The `set_bit` function takes in a pointer to a bitboard and an int square
- * and sets the bit corresponding to the square (using LERF-mapping) of the bitboard
- * to 1. Assumes `bb` points to a valid bitboard and that `square` is between 0 and 63.
+/* Function: initialize_board
+ * ---------------------------
+ * The `initialize_board` function takes in a pointer to a board struct and initializes
+ * the board to a cleared position.
  */
-void set_bit(bitboard *bb, int square);
+void initialize_board(board *b);
 
-/* Function: clear_bit
- * --------------------
- * The `clear_bit` function takes in a pointer to a bitboard and an int square
- * and sets the bit corresponding to the square (using LERF-mapping) of the bitboard
- * to 0.
+/* Function: print_board
+ * ----------------------
+ * The `print_board` function takes in a pointer to a board struct and prints out
+ * an ASCII representation of the board state. White pieces will print in uppercase
+ * letters while black pieces will print in lowercase.
  */
-void clear_bit(bitboard *bb, int square);
-
-/* Function: get_bit
- * ------------------
- * The `get_bit` function takes in a bitboard and an int square and returns the
- * value of the bit corresponding to the square (using LERF-mapping) of the bitboard
- * via a boolean value.
- */
-bool get_bit(bitboard bb, int square);
-
-/* Function: get_file
- * -------------------
- * The `get_file` function takes an int square value and outputs its corresponding
- * file (zero-based, i.e. 0-7).
- */
-int get_file(int square);
-
-/* Function: get_rank
- * --------------------
- * The `get_rank` function takes an int square value and outputs its corresponding
- * rank (zero-based, i.e. 0-7).
- */
-int get_rank(int square);
+void print_board(board *b);
 
 /* Function: get_bitboard_from_square
  * -----------------------------------
@@ -110,41 +83,5 @@ bitboard *get_bitboard_from_square(board *b, int square, piece_t *p, side *s);
  * If s is valid, it is populated with the bitboard's associated side.
  */
 bitboard *get_bitboard_from_ascii(board *b, char piece_c, side *s);
-
-/* Function: print_board
- * ----------------------
- * The `print_board` function takes in a pointer to a board struct and prints out
- * an ASCII representation of the board state. White pieces will print in uppercase
- * letters while black pieces will print in lowercase.
- */
-void print_board(board *b);
-
-/* Function: initialize_board
- * ---------------------------
- * The `initialize_board` function takes in a pointer to a board struct and initializes
- * the board to a cleared position.
- */
-void initialize_board(board *b);
-
-/* Function: generate_moves
- * -------------------------
- * The `generate_moves` function takes a move_t array and a board pointer and populates
- * the array with all pseudo-legal moves in the board position.
- */
-void generate_moves(move_t *move_arr[], board *board);
-
-/* Function: make_move
- * --------------------
- * The `make_move` function takes a pointer to a board struct and a move and modifies
- * the board according to the move.
- */
-void make_move(board *b, move_t move);
-
-/* Function: unmake_move
- * ----------------------
- * The `unmake_move` function takes a pointer to a board struct and a move that is
- * assumed to had just been made, and modifies the board to undo the move.
- */
-void unmake_move(board *b, move_t move);
 
 #endif

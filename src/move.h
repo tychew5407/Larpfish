@@ -44,16 +44,6 @@ typedef enum {
     QUEEN_PROMO_CAPTURE  = 15
 } move_flag;
 
-/* Additional info is required to undo moves, encapsulated by the
- * undo_move_t struct.
- */
-typedef struct {
-    piece_t captured_piece;
-    int ep_square;
-    unsigned char castling;
-    unsigned int halfmove_clock;
-} undo_move_t;
-
 /* FUNCTION PROTOTYPES */
 
 /* Function: encode_move
