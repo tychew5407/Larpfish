@@ -4,9 +4,11 @@
  */
 
 #include <stddef.h>
+#include <stdio.h>
 #include "movegen.h"
 
 static bitboard pawn_attacks[NUM_SIDES][NUM_SQUARES];
+static bitboard knight_attacks[NUM_SQUARES] = {0};
 
 /* Helper function to precompute the pawn attack table. */
 static void init_pawn_attacks() {
@@ -17,6 +19,28 @@ static void init_pawn_attacks() {
         pawn_attacks[WHITE][sq] |= (sq_bb & ~FILE_H) << VERT_SHIFT << 1;
         pawn_attacks[BLACK][sq] = (sq_bb & ~FILE_A) >> VERT_SHIFT >> 1;
         pawn_attacks[BLACK][sq] |= (sq_bb & ~FILE_H) >> VERT_SHIFT << 1;
+    }
+}
+
+/* Helper function to precompute the knight attack table. */
+static void init_knight_attacks() {
+    for (int sq = 0; sq < NUM_SQUARES; sq ++) {
+        bitboard sq_bb = 1ULL << sq;
+
+        bitboard dir_bbs[KNIGHT_DIRS] = {
+            (sq_bb & ~FILE_H) << (VERT_SHIFT << 1) << 1, // NNE
+            (sq_bb & ~FILE_A) << (VERT_SHIFT << 1) >> 1, // NNW
+            (sq_bb & ~FILE_G & ~FILE_H) << VERT_SHIFT << 2, // NEE
+            (sq_bb & ~FILE_A & ~FILE_B) << VERT_SHIFT >> 2, // NWW
+            (sq_bb & ~FILE_H) >> (VERT_SHIFT << 1) << 1, // SSE
+            (sq_bb & ~FILE_A) >> (VERT_SHIFT << 1) >> 1, // SSW
+            (sq_bb & ~FILE_G & ~FILE_H) >> VERT_SHIFT << 2, // SEE
+            (sq_bb & ~FILE_A & ~FILE_B) >> VERT_SHIFT >> 2, // SWW
+        };
+
+        for (int i = 0; i < KNIGHT_DIRS; i++) {
+            knight_attacks[sq] |= dir_bbs[i];
+        }
     }
 }
 
@@ -112,8 +136,30 @@ static void generate_pawn_attacks(move_t *move_arr, size_t *index, board *b) {
     }
 }
 
+/* Helper function that populates the move array with knight moves. */
+static void generate_knight_moves(move_t *move_arr, size_t *index, board *b) {
+    side s = b->play_side;
+    bitboard knight_bb = b->piece_bbs[KNIGHT][s];
+
+    while (knight_bb) {
+        int from_sq = bit_scan(knight_bb);
+        bitboard to_bb = knight_attacks[from_sq];
+        to_bb &= ~(b->occupied_bbs[s]);
+        
+        while (to_bb) {
+            int to_sq = bit_scan(to_bb);
+            move_flag flag = ((1ULL << to_sq) & b->occupied_bbs[s == WHITE]) ? CAPTURE : QUIET;
+            push_move(move_arr, index, from_sq, to_sq, flag);
+            to_bb ^= (1ULL << to_sq);
+        }
+        
+        knight_bb ^= (1ULL << from_sq);
+    }
+}
+
 void init_attack_tables() {
     init_pawn_attacks();
+    init_knight_attacks();
 }
 
 void generate_moves(move_t *move_arr, size_t *length, board *board) {
@@ -122,6 +168,6 @@ void generate_moves(move_t *move_arr, size_t *length, board *board) {
     /* generate_pawn_dblpush(move_arr, &index, board); */
     /* generate_pawn_push(move_arr, &index, board); */
     /* generate_pawn_attacks(move_arr, &index, board); */
-
+    generate_knight_moves(move_arr, &index, board);
     *length = index;
 }

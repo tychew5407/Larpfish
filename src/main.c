@@ -31,6 +31,6 @@ int main(int argc, char *argv[]) {
     parse_fen(&board, fen);
     print_board(&board);
     generate_moves(move_list, &move_list_len, &board);
-
+    
     return 0;
 }

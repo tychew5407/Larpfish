@@ -12,6 +12,9 @@
 #include "move.h"
 #include "board.h"
 
+/* DEFINITIONS */
+#define KNIGHT_DIRS 8
+
 /* Function: init_attack_tables
  * -----------------------------
  * The `init_attack_tables` function initializes the private lookup attack tables for
