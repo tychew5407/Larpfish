@@ -9,6 +9,7 @@
 
 static bitboard pawn_attacks[NUM_SIDES][NUM_SQUARES];
 static bitboard knight_attacks[NUM_SQUARES] = {0};
+static bitboard king_attacks[NUM_SQUARES] = {0};
 
 /* Helper function to precompute the pawn attack table. */
 static void init_pawn_attacks() {
@@ -40,6 +41,28 @@ static void init_knight_attacks() {
 
         for (int i = 0; i < KNIGHT_DIRS; i++) {
             knight_attacks[sq] |= dir_bbs[i];
+        }
+    }
+}
+
+/* Helper function to precompute the king attack table. */
+static void init_king_attacks() {
+    for (int sq = 0; sq < NUM_SQUARES; sq ++) {
+        bitboard sq_bb = 1ULL << sq;
+
+        bitboard dir_bbs[KING_DIRS] = {
+            (sq_bb & ~FILE_H) << VERT_SHIFT << 1, // NE
+            (sq_bb & ~FILE_A) << VERT_SHIFT >> 1, // NW
+            (sq_bb & ~FILE_H) >> VERT_SHIFT << 1, // SE
+            (sq_bb & ~FILE_A) >> VERT_SHIFT >> 1, // SW
+            sq_bb << VERT_SHIFT,                  // N
+            sq_bb >> VERT_SHIFT,                  // S
+            (sq_bb & ~FILE_H) << 1,               // E
+            (sq_bb & ~FILE_A) >> 1,               // W
+        };
+
+        for (int i = 0; i < KING_DIRS; i++) {
+            king_attacks[sq] |= dir_bbs[i];
         }
     }
 }
@@ -145,7 +168,7 @@ static void generate_knight_moves(move_t *move_arr, size_t *index, board *b) {
         int from_sq = bit_scan(knight_bb);
         bitboard to_bb = knight_attacks[from_sq];
         to_bb &= ~(b->occupied_bbs[s]);
-        
+
         while (to_bb) {
             int to_sq = bit_scan(to_bb);
             move_flag flag = ((1ULL << to_sq) & b->occupied_bbs[s == WHITE]) ? CAPTURE : QUIET;
@@ -157,9 +180,46 @@ static void generate_knight_moves(move_t *move_arr, size_t *index, board *b) {
     }
 }
 
+/* Helper function that populates the move array with king moves. */
+static void generate_king_moves(move_t *move_arr, size_t *index, board *b) {
+    side s = b->play_side;
+    bitboard king_bb = b->piece_bbs[KING][s];
+
+    while (king_bb) {
+        int from_sq = bit_scan(king_bb);
+        bitboard to_bb = king_attacks[from_sq];
+        to_bb &= ~(b->occupied_bbs[s]);
+        
+        while (to_bb) {
+            int to_sq = bit_scan(to_bb);
+            move_flag flag = ((1ULL << to_sq) & b->occupied_bbs[s == WHITE]) ? CAPTURE : QUIET;
+            push_move(move_arr, index, from_sq, to_sq, flag);
+            to_bb ^= (1ULL << to_sq);
+        }
+
+        // Castling
+        // TODO: detect attack on relevant squares
+        // TODO: use a bitboard for king-rook paths
+        bitboard empty = (~(b->occupied_bbs[WHITE])) & (~(b->occupied_bbs[BLACK]));
+        if (b->castling & CASTLE_ARR_START >> (s << 1) &&
+            (1ULL << (from_sq + 2)) & empty &&
+            (1ULL << (from_sq + 1)) & empty) {
+            push_move(move_arr, index, from_sq, from_sq + 2, KING_CASTLE);
+        } else if (b->castling & CASTLE_ARR_START >> (s << 1) >> 1 &&
+                   (1ULL << (from_sq - 3)) & empty &&
+                   (1ULL << (from_sq - 2)) & empty &&
+                   (1ULL << (from_sq - 1)) & empty) {
+            push_move(move_arr, index, from_sq, from_sq - 2, QUEEN_CASTLE);
+        }
+        
+        king_bb ^= (1ULL << from_sq);
+    }
+}
+
 void init_attack_tables() {
     init_pawn_attacks();
     init_knight_attacks();
+    init_king_attacks();
 }
 
 void generate_moves(move_t *move_arr, size_t *length, board *board) {
@@ -168,6 +228,8 @@ void generate_moves(move_t *move_arr, size_t *length, board *board) {
     /* generate_pawn_dblpush(move_arr, &index, board); */
     /* generate_pawn_push(move_arr, &index, board); */
     /* generate_pawn_attacks(move_arr, &index, board); */
-    generate_knight_moves(move_arr, &index, board);
+    /* generate_knight_moves(move_arr, &index, board); */
+    generate_king_moves(move_arr, &index, board);
+    
     *length = index;
 }

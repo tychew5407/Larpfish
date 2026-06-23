@@ -14,6 +14,7 @@
 
 /* DEFINITIONS */
 #define KNIGHT_DIRS 8
+#define KING_DIRS 8
 
 /* Function: init_attack_tables
  * -----------------------------
