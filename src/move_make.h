@@ -13,6 +13,8 @@
 /* DEFINITIONS */
 #define ROOK_KING_CASTLE 5 // To-squares for rooks upon king/queen castling (for white).
 #define ROOK_QUEEN_CASTLE 3
+#define KING_ROOK_START 7 // Starting squares for rooks (for white).
+#define QUEEN_ROOK_START 0
 
 /* Additional info is required to undo moves, encapsulated by the
  * undo_move_t struct.

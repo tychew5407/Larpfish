@@ -46,12 +46,18 @@ static void update_ep(board *b, int to_sq, side move_s, move_flag move_f) {
 }
 
 // Helper function of `make_move` to update a board's castling bitarray.
-static void update_castling(board *b, piece_t move_p, side move_s) {
+static void update_castling(board *b, int from_sq, piece_t move_p, side move_s) {
     move_stack[move_stack_index].castling = b->castling;
 
     if (move_p == KING) {
         b->castling &= ~(CASTLE_ARR_START >> (2 * move_s));
         b->castling &= ~(CASTLE_ARR_START >> 1 >> (2 * move_s));
+    } else if (move_p == ROOK &&
+               ((unsigned int)from_sq == KING_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN) ||
+                (unsigned int)from_sq == QUEEN_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN))) {
+        b->castling &= ~(CASTLE_ARR_START >>
+                         ((unsigned int)from_sq == QUEEN_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN)) >>
+                         (2 * move_s));
     }
 }
 
@@ -89,7 +95,7 @@ void make_move(board *b, move_t move) {
     update_move_counters(b, move_p, move_s, move_f);
     update_playside(b, move_s);
     update_ep(b, to_sq, move_s, move_f);
-    update_castling(b, move_p, move_s);
+    update_castling(b, from_sq, move_p, move_s);
 
     // Handle capturing
     if (move_f & CAPTURE_FLAG) {
