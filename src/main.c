@@ -27,6 +27,7 @@ int main(int argc, char *argv[]) {
     }
     
     initialize_board(&board);
+    init_attack_tables();
     parse_fen(&board, fen);
     print_board(&board);
     generate_moves(move_list, &move_list_len, &board);

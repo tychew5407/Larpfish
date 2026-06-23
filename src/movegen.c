@@ -6,8 +6,39 @@
 #include <stddef.h>
 #include "movegen.h"
 
+static bitboard pawn_attacks[NUM_SIDES][NUM_SQUARES];
+
+/* Helper function to precompute the pawn attack table. */
+static void init_pawn_attacks() {
+    for (int sq = 0; sq < NUM_SQUARES; sq ++) {
+        bitboard sq_bb = 1ULL << sq;
+        
+        pawn_attacks[WHITE][sq] = (sq_bb & ~FILE_A) << VERT_SHIFT >> 1;
+        pawn_attacks[WHITE][sq] |= (sq_bb & ~FILE_H) << VERT_SHIFT << 1;
+        pawn_attacks[BLACK][sq] = (sq_bb & ~FILE_A) >> VERT_SHIFT >> 1;
+        pawn_attacks[BLACK][sq] |= (sq_bb & ~FILE_H) >> VERT_SHIFT << 1;
+    }
+}
+
 static bitboard get_pawnpush_bb(bitboard pawn_bb, side s) {
     return pawn_bb << VERT_SHIFT >> (s << VERT_SHIFT_POWER << 1);
+}
+
+/* Helper function to push a move to the move array. */
+static void push_move(move_t *move_arr, size_t *index, int from_sq, int to_sq, move_flag flag) {
+    move_arr[*index] = encode_move(from_sq, to_sq, flag);
+    (*index) ++;
+}
+
+/* Helper function to push all promoting moves to the move array. The bool `capture` represents
+ * whether the promoting moves are also captures.
+ */
+static void push_promotions(move_t *move_arr, size_t *index, int from_sq, int to_sq, bool capture) {
+    move_flag flag_base = capture ? KNIGHT_PROMO_CAPTURE : KNIGHT_PROMO;
+    
+    for (int p = 0; p < NUM_PROMOS; p++) {
+        push_move(move_arr, index, from_sq, to_sq, flag_base + p);
+    }
 }
 
 /* Helper function that populates the move array with single pawn pushes. */
@@ -23,13 +54,9 @@ static void generate_pawn_push(move_t *move_arr, size_t *index, board *b) {
         int from_sq = to_sq - VERT_SHIFT + (s * (VERT_SHIFT << 1));
         
         if ((1ULL << to_sq) & (RANK_1 | RANK_8)) {
-            for (int p = 0; p < NUM_PROMOS; p++) {
-                move_arr[*index] = encode_move(from_sq, to_sq, KNIGHT_PROMO + p);
-                (*index) ++;
-            }
+            push_promotions(move_arr, index, from_sq, to_sq, false);
         } else {
-            move_arr[*index] = encode_move(from_sq, to_sq, QUIET);
-            (*index) ++;
+            push_move(move_arr, index, from_sq, to_sq, QUIET);
         }
             
         to_bb ^= (1ULL << to_sq);
@@ -50,18 +77,51 @@ static void generate_pawn_dblpush(move_t *move_arr, size_t *index, board *b) {
         int to_sq = bit_scan(to_bb);
         int from_sq = to_sq - (VERT_SHIFT << 1) + (s * (VERT_SHIFT << 2));
 
-        move_arr[*index] = encode_move(from_sq, to_sq, DOUBLE_PAWN_PUSH);
-        (*index) ++;
+        push_move(move_arr, index, from_sq, to_sq, DOUBLE_PAWN_PUSH);
         
         to_bb ^= (1ULL << to_sq);
     }
 }
 
+/* Helper function that populates the move array with pawn attacks. */
+static void generate_pawn_attacks(move_t *move_arr, size_t *index, board *b) {
+    side s = b->play_side;
+    bitboard ep_bb = 1ULL << b->ep_square;
+
+    bitboard pawn_bb = b->piece_bbs[PAWN][s];
+
+    while (pawn_bb) {
+        int from_sq = bit_scan(pawn_bb);
+        bitboard to_bb = pawn_attacks[s][from_sq];
+        to_bb &= (b->occupied_bbs[s == WHITE] | ep_bb);
+
+        while (to_bb) {
+            int to_sq = bit_scan(to_bb);
+
+            if ((1ULL << to_sq) & (RANK_1 | RANK_8)) {
+                push_promotions(move_arr, index, from_sq, to_sq, true);
+            } else {
+                move_flag flag = (to_sq == b->ep_square) ? EP_CAPTURE : CAPTURE;
+                push_move(move_arr, index, from_sq, to_sq, flag);
+            }
+            
+            to_bb ^= (1ULL << to_sq);
+        }
+        
+        pawn_bb ^= (1ULL << from_sq);
+    }
+}
+
+void init_attack_tables() {
+    init_pawn_attacks();
+}
+
 void generate_moves(move_t *move_arr, size_t *length, board *board) {
     size_t index = 0;
 
-    generate_pawn_dblpush(move_arr, &index, board);
-    generate_pawn_push(move_arr, &index, board);
+    /* generate_pawn_dblpush(move_arr, &index, board); */
+    /* generate_pawn_push(move_arr, &index, board); */
+    /* generate_pawn_attacks(move_arr, &index, board); */
 
     *length = index;
 }

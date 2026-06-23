@@ -12,6 +12,13 @@
 #include "move.h"
 #include "board.h"
 
+/* Function: init_attack_tables
+ * -----------------------------
+ * The `init_attack_tables` function initializes the private lookup attack tables for
+ * move generation. Should be called before any move generation.
+ */
+void init_attack_tables();
+
 /* Function: generate_moves
  * -------------------------
  * The `generate_moves` function takes a move_t array and a board pointer and populates
