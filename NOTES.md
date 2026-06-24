@@ -3,6 +3,9 @@
 ## Board Representation
 - Bitboard with LERF-mapping
 
+## Move Generation
+- Lookup attack tables via precomputation and magic bitboards
+
 ## Known limitations / future work
 
 ### MILESTONE 1:
@@ -14,8 +17,8 @@
 - [x] Build test harness for FEN and board representation
 
 ### MILESTONE 2:
-- [ ] Create move representation
-- [ ] Create move helper getter/setter functions (from/to)
+- [x] Create move representation
+- [x] Create move helper getter/setter functions (from/to)
 - [ ] Create psuedo-legal move generation
-- [ ] Create make_move and unmake_move functions
+- [x] Create make_move and unmake_move functions
 - [ ] Build Perft test harness for move generation

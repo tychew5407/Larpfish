@@ -133,7 +133,7 @@ static void generate_pawn_dblpush(move_t *move_arr, size_t *index, board *b) {
 /* Helper function that populates the move array with pawn attacks. */
 static void generate_pawn_attacks(move_t *move_arr, size_t *index, board *b) {
     side s = b->play_side;
-    bitboard ep_bb = 1ULL << b->ep_square;
+    bitboard ep_bb = (b->ep_square != NO_EN_PASSANT) ? 1ULL << b->ep_square : 0;
 
     bitboard pawn_bb = b->piece_bbs[PAWN][s];
 
@@ -199,16 +199,19 @@ static void generate_king_moves(move_t *move_arr, size_t *index, board *b) {
 
         // Castling
         // TODO: detect attack on relevant squares
-        // TODO: use a bitboard for king-rook paths
         bitboard empty = (~(b->occupied_bbs[WHITE])) & (~(b->occupied_bbs[BLACK]));
+        bitboard side_shift = s * VERT_SHIFT * (SIDE_LEN - 1); // amount to shift path based on side
+        
+        bitboard king_castle_path = KING_CASTLE_PATH << side_shift;
+        bitboard queen_castle_path = QUEEN_CASTLE_PATH << side_shift;
+        
         if (b->castling & CASTLE_ARR_START >> (s << 1) &&
-            (1ULL << (from_sq + 2)) & empty &&
-            (1ULL << (from_sq + 1)) & empty) {
+            (king_castle_path & empty) == king_castle_path) {
             push_move(move_arr, index, from_sq, from_sq + 2, KING_CASTLE);
-        } else if (b->castling & CASTLE_ARR_START >> (s << 1) >> 1 &&
-                   (1ULL << (from_sq - 3)) & empty &&
-                   (1ULL << (from_sq - 2)) & empty &&
-                   (1ULL << (from_sq - 1)) & empty) {
+        }
+
+        if (b->castling & CASTLE_ARR_START >> (s << 1) >> 1 &&
+            (queen_castle_path & empty) == queen_castle_path) {
             push_move(move_arr, index, from_sq, from_sq - 2, QUEEN_CASTLE);
         }
         

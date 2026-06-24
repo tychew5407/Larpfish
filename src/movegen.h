@@ -15,7 +15,10 @@
 /* DEFINITIONS */
 #define KNIGHT_DIRS 8
 #define KING_DIRS 8
+#define KING_CASTLE_PATH (uint64_t)0x60
+#define QUEEN_CASTLE_PATH (uint64_t)0xe
 
+// 00000110
 /* Function: init_attack_tables
  * -----------------------------
  * The `init_attack_tables` function initializes the private lookup attack tables for
