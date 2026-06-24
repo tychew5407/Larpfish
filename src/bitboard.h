@@ -59,9 +59,16 @@ int get_rank(int square);
 /* Function: bit_scan
  * -------------------
  * The `bit_scan` function takes a bitboard value and outputs the index of its LS1B.
- * Implemented using De Brujin multiplication. Assumes that bb != 0.
+ * Implemented using De Bruijn multiplication. Assumes that bb != 0.
  */
 int bit_scan(bitboard bb);
+
+/* Function: bit_scan_reverse
+ * -------------------
+ * The `bit_scan_reverse` function takes a bitboard value and outputs the index of its MS1B.
+ * Implemented using De Bruijn multiplication. Assumes that bb != 0.
+ */
+int bit_scan_reverse(bitboard bb);
 
 /* Function: print_bitboard
  * -------------------------

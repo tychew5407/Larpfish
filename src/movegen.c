@@ -7,9 +7,28 @@
 #include <stdio.h>
 #include "movegen.h"
 
+static const ray rays[RAY_DIRS] = {
+    {NORTH, VERT_SHIFT, false, ~0},
+    {NORTHEAST, VERT_SHIFT + 1, false, ~FILE_A},
+    {EAST, 1, false, ~FILE_A},
+    {SOUTHEAST, VERT_SHIFT - 1, true, ~FILE_A},
+    {SOUTH, VERT_SHIFT, true, ~0},
+    {SOUTHWEST, VERT_SHIFT + 1, true, ~FILE_H},
+    {WEST, 1, true, ~FILE_H},
+    {NORTHWEST, VERT_SHIFT - 1, false, ~FILE_H}
+};
+
+// To index into rays array, with -1 as a sentinel value to stop.
+static const int slider_ray_indices[NUM_SLIDERS][RAY_DIRS + 1] = {
+    {1, 3, 5, 7, -1, 0, 0, 0, 0},  // BISHOP
+    {0, 2, 4, 6, -1, 0, 0, 0, 0},  // ROOK
+    {0, 1, 2, 3, 4, 5, 6, 7, -1}   // QUEEN
+};
+
 static bitboard pawn_attacks[NUM_SIDES][NUM_SQUARES];
 static bitboard knight_attacks[NUM_SQUARES] = {0};
 static bitboard king_attacks[NUM_SQUARES] = {0};
+static bitboard ray_attacks[NUM_SQUARES][RAY_DIRS] = {0};
 
 /* Helper function to precompute the pawn attack table. */
 static void init_pawn_attacks() {
@@ -67,6 +86,33 @@ static void init_king_attacks() {
     }
 }
 
+/* Helper function to precompute ray attacks. */
+static void init_ray_attacks() {
+    for (int sq = 0; sq < NUM_SQUARES; sq ++) {
+        for (int i = 0; i < RAY_DIRS; i++) {
+            ray cur = rays[i];
+
+            bitboard ray_bb = 1ULL << sq;
+            
+            if (cur.negative) {
+                ray_bb >>= cur.shift_amount;
+            } else {
+                ray_bb <<= cur.shift_amount;
+            }
+
+            while (ray_bb & cur.wrap_check) {
+                ray_attacks[sq][cur.dir] |= ray_bb;
+
+                if (cur.negative) {
+                    ray_bb >>= cur.shift_amount;
+                } else {
+                    ray_bb <<= cur.shift_amount;
+                }
+            }
+        }
+    }
+}
+
 static bitboard get_pawnpush_bb(bitboard pawn_bb, side s) {
     return pawn_bb << VERT_SHIFT >> (s << VERT_SHIFT_POWER << 1);
 }
@@ -85,6 +131,21 @@ static void push_promotions(move_t *move_arr, size_t *index, int from_sq, int to
     
     for (int p = 0; p < NUM_PROMOS; p++) {
         push_move(move_arr, index, from_sq, to_sq, flag_base + p);
+    }
+}
+
+/* Helper function to push all moves from a to_bb to the move array. For all pieces but pawns
+ * (since pawns have to consider additional flags).
+ */
+static void push_bb(move_t *move_arr, size_t *index, board *b, int from_sq, bitboard to_bb) {
+    side s = b->play_side;
+    to_bb &= ~(b->occupied_bbs[s]);
+
+    while (to_bb) {
+        int to_sq = bit_scan(to_bb);
+        move_flag flag = ((1ULL << to_sq) & b->occupied_bbs[s == WHITE]) ? CAPTURE : QUIET;
+        push_move(move_arr, index, from_sq, to_sq, flag);
+        to_bb ^= (1ULL << to_sq);
     }
 }
 
@@ -166,16 +227,7 @@ static void generate_knight_moves(move_t *move_arr, size_t *index, board *b) {
 
     while (knight_bb) {
         int from_sq = bit_scan(knight_bb);
-        bitboard to_bb = knight_attacks[from_sq];
-        to_bb &= ~(b->occupied_bbs[s]);
-
-        while (to_bb) {
-            int to_sq = bit_scan(to_bb);
-            move_flag flag = ((1ULL << to_sq) & b->occupied_bbs[s == WHITE]) ? CAPTURE : QUIET;
-            push_move(move_arr, index, from_sq, to_sq, flag);
-            to_bb ^= (1ULL << to_sq);
-        }
-        
+        push_bb(move_arr, index, b, from_sq, knight_attacks[from_sq]);
         knight_bb ^= (1ULL << from_sq);
     }
 }
@@ -187,18 +239,9 @@ static void generate_king_moves(move_t *move_arr, size_t *index, board *b) {
 
     while (king_bb) {
         int from_sq = bit_scan(king_bb);
-        bitboard to_bb = king_attacks[from_sq];
-        to_bb &= ~(b->occupied_bbs[s]);
-        
-        while (to_bb) {
-            int to_sq = bit_scan(to_bb);
-            move_flag flag = ((1ULL << to_sq) & b->occupied_bbs[s == WHITE]) ? CAPTURE : QUIET;
-            push_move(move_arr, index, from_sq, to_sq, flag);
-            to_bb ^= (1ULL << to_sq);
-        }
+        push_bb(move_arr, index, b, from_sq, king_attacks[from_sq]);
 
         // Castling
-        // TODO: detect attack on relevant squares
         bitboard empty = (~(b->occupied_bbs[WHITE])) & (~(b->occupied_bbs[BLACK]));
         bitboard side_shift = s * VERT_SHIFT * (SIDE_LEN - 1); // amount to shift path based on side
         
@@ -219,20 +262,78 @@ static void generate_king_moves(move_t *move_arr, size_t *index, board *b) {
     }
 }
 
+/* Helper function that populates the move array with moves of any specified slider piece. */
+static void generate_slider_moves(move_t *move_arr, size_t *index, board *b, piece_t p) {
+    side s = b->play_side;
+    bitboard piece_bb = b->piece_bbs[p][s];
+
+    while (piece_bb) {
+        int from_sq = bit_scan(piece_bb);
+
+        for (int i = 0; i < RAY_DIRS + 1; i++) {
+            int ray_i = slider_ray_indices[p - BISHOP][i];
+            if (ray_i == -1) break;
+
+            bitboard to_bb = ray_attacks[from_sq][ray_i];
+            bitboard blockers_bb = to_bb & (b->occupied_bbs[WHITE] | b->occupied_bbs[BLACK]);
+
+            if (blockers_bb) {
+                int block_sq = (rays[ray_i].negative) ? bit_scan_reverse(blockers_bb) : bit_scan(blockers_bb);
+                to_bb ^= ray_attacks[block_sq][ray_i];
+            }
+
+            push_bb(move_arr, index, b, from_sq, to_bb);
+        }
+
+        piece_bb ^= (1ULL << from_sq);
+    }
+}
+
 void init_attack_tables() {
     init_pawn_attacks();
     init_knight_attacks();
     init_king_attacks();
+    init_ray_attacks();
 }
 
 void generate_moves(move_t *move_arr, size_t *length, board *board) {
     size_t index = 0;
 
-    /* generate_pawn_dblpush(move_arr, &index, board); */
-    /* generate_pawn_push(move_arr, &index, board); */
-    /* generate_pawn_attacks(move_arr, &index, board); */
-    /* generate_knight_moves(move_arr, &index, board); */
+    generate_pawn_dblpush(move_arr, &index, board);
+    generate_pawn_push(move_arr, &index, board);
+    generate_pawn_attacks(move_arr, &index, board);
+    generate_knight_moves(move_arr, &index, board);
     generate_king_moves(move_arr, &index, board);
+    generate_slider_moves(move_arr, &index, board, BISHOP);
+    generate_slider_moves(move_arr, &index, board, ROOK);
+    generate_slider_moves(move_arr, &index, board, QUEEN);
     
     *length = index;
+}
+
+void print_move_list(move_t *move_arr, size_t length) {
+    const char* flag_names[16] = {
+        "QUIET",
+        "DOUBLE_PAWN_PUSH",
+        "KING_CASTLE",
+        "QUEEN_CASTLE",
+        "CAPTURE",
+        "EP_CAPTURE",
+        "",
+        "",
+        "KNIGHT_PROMO",
+        "BISHOP_PROMO",
+        "ROOK_PROMO",
+        "QUEEN_PROMO",
+        "KNIGHT_PROMO_CAPTURE",
+        "BISHOP_PROMO_CAPTURE",
+        "ROOK_PROMO_CAPTURE",
+        "QUEEN_PROMO_CAPTURE"
+    };
+    
+    for (size_t i = 0; i < length; i++) {
+        move_t cur = move_arr[i];
+
+        printf("Index %lu: FROM = %d, TO = %d, FLAG = %s\n", i, get_from(cur), get_to(cur), flag_names[get_flag(cur)]);
+    }
 }
