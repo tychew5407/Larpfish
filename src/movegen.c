@@ -134,67 +134,81 @@ static void push_promotions(move_t *move_arr, size_t *index, int from_sq, int to
     }
 }
 
-/* Helper function to push all moves from a to_bb to the move array. For all pieces but pawns
- * (since pawns have to consider additional flags).
+/* Helper function to push all moves from a to_bb to the move array for a single from_sq.
  */
-static void push_bb(move_t *move_arr, size_t *index, board *b, int from_sq, bitboard to_bb) {
-    side s = b->play_side;
-    to_bb &= ~(b->occupied_bbs[s]);
-
+static void push_bb(move_t *move_arr, size_t *index, int from_sq, bitboard to_bb, move_flag flag) {
     while (to_bb) {
         int to_sq = bit_scan(to_bb);
-        move_flag flag = ((1ULL << to_sq) & b->occupied_bbs[s == WHITE]) ? CAPTURE : QUIET;
         push_move(move_arr, index, from_sq, to_sq, flag);
-        to_bb ^= (1ULL << to_sq);
+        to_bb &= to_bb - 1;
     }
+}
+
+/* Helper function that takes an attack bitboard and splits it into capture and quiet bitboards
+ * to push into the move array. Should not be used by pawns in which from_sqs are computed on the fly.
+ */
+static void push_attack_bb(move_t *move_arr, size_t *index, board *b, int from_sq, bitboard attack_bb) {
+    side s = b->play_side;
+    
+    attack_bb &= ~(b->occupied_bbs[s]);
+
+    bitboard capture_bb = attack_bb & b->occupied_bbs[s == WHITE];
+    bitboard quiet_bb = attack_bb ^ capture_bb;
+
+    push_bb(move_arr, index, from_sq, capture_bb, CAPTURE);
+    push_bb(move_arr, index, from_sq, quiet_bb, QUIET);
 }
 
 /* Helper function that populates the move array with single pawn pushes. */
 static void generate_pawn_push(move_t *move_arr, size_t *index, board *b) {
     side s = b->play_side;
-    bitboard empty_bb = (~(b->occupied_bbs[WHITE])) & (~(b->occupied_bbs[BLACK]));
+    bitboard empty_bb = ~(b->occupied_bbs[WHITE] | b->occupied_bbs[BLACK]);
     
-    bitboard to_bb = get_pawnpush_bb(b->piece_bbs[PAWN][s], s);
-    to_bb &= empty_bb;
+    bitboard to_bb = get_pawnpush_bb(b->piece_bbs[PAWN][s], s) & empty_bb;
+    
+    bitboard pawn_promote_bb = to_bb & (RANK_1 | RANK_8);
+    bitboard pawn_push_bb = to_bb ^ pawn_promote_bb;
 
-    while (to_bb) {
-        int to_sq = bit_scan(to_bb);
-        int from_sq = to_sq - VERT_SHIFT + (s * (VERT_SHIFT << 1));
-        
-        if ((1ULL << to_sq) & (RANK_1 | RANK_8)) {
-            push_promotions(move_arr, index, from_sq, to_sq, false);
-        } else {
-            push_move(move_arr, index, from_sq, to_sq, QUIET);
-        }
-            
-        to_bb ^= (1ULL << to_sq);
+    while (pawn_promote_bb) {
+        int to_sq = bit_scan(pawn_promote_bb);
+        int from_sq = (s == WHITE) ? to_sq - VERT_SHIFT : to_sq + VERT_SHIFT;
+
+        push_promotions(move_arr, index, from_sq, to_sq, false);
+        pawn_promote_bb &= pawn_promote_bb - 1;
+    }
+    
+    while (pawn_push_bb) {
+        int to_sq = bit_scan(pawn_push_bb);
+        int from_sq = (s == WHITE) ? to_sq - VERT_SHIFT : to_sq + VERT_SHIFT;
+
+        push_move(move_arr, index, from_sq, to_sq, QUIET);
+        pawn_push_bb &= pawn_push_bb - 1;
     }
 }
 
 /* Helper function that populates the move array wih double pawn pushes. */
 static void generate_pawn_dblpush(move_t *move_arr, size_t *index, board *b) {
     side s = b->play_side;
-    bitboard empty = (~(b->occupied_bbs[WHITE])) & (~(b->occupied_bbs[BLACK]));
+    bitboard empty_bb = ~(b->occupied_bbs[WHITE] | b->occupied_bbs[BLACK]);
     
-    bitboard to_bb = get_pawnpush_bb(b->piece_bbs[PAWN][s], s);
-    to_bb &= empty;
-    to_bb = get_pawnpush_bb(to_bb, s);
-    to_bb &= empty & ((s * RANK_5) | ((s == WHITE) * RANK_4));
+    bitboard single_push_bb = get_pawnpush_bb(b->piece_bbs[PAWN][s], s) & empty_bb;
+    bitboard double_push_bb = get_pawnpush_bb(single_push_bb, s) & empty_bb;
 
-    while (to_bb) {
-        int to_sq = bit_scan(to_bb);
+    double_push_bb &= (s == WHITE) ? RANK_4 : RANK_5;
+
+    while (double_push_bb) {
+        int to_sq = bit_scan(double_push_bb);
         int from_sq = to_sq - (VERT_SHIFT << 1) + (s * (VERT_SHIFT << 2));
 
         push_move(move_arr, index, from_sq, to_sq, DOUBLE_PAWN_PUSH);
-        
-        to_bb ^= (1ULL << to_sq);
+        double_push_bb &= double_push_bb - 1;
     }
 }
 
 /* Helper function that populates the move array with pawn attacks. */
 static void generate_pawn_attacks(move_t *move_arr, size_t *index, board *b) {
     side s = b->play_side;
-    bitboard ep_bb = (b->ep_square != NO_EN_PASSANT) ? 1ULL << b->ep_square : 0;
+    bitboard ep_bb = 1ULL << b->ep_square;
 
     bitboard pawn_bb = b->piece_bbs[PAWN][s];
 
@@ -203,20 +217,24 @@ static void generate_pawn_attacks(move_t *move_arr, size_t *index, board *b) {
         bitboard to_bb = pawn_attacks[s][from_sq];
         to_bb &= (b->occupied_bbs[s == WHITE] | ep_bb);
 
-        while (to_bb) {
-            int to_sq = bit_scan(to_bb);
+        bool promote = to_bb & (RANK_1 | RANK_8);
 
-            if ((1ULL << to_sq) & (RANK_1 | RANK_8)) {
+        if (promote) {
+            while (to_bb) {
+                int to_sq = bit_scan(to_bb);
                 push_promotions(move_arr, index, from_sq, to_sq, true);
-            } else {
+                to_bb &= to_bb - 1;
+            }
+        } else {
+            while (to_bb) {
+                int to_sq = bit_scan(to_bb);
                 move_flag flag = (to_sq == b->ep_square) ? EP_CAPTURE : CAPTURE;
                 push_move(move_arr, index, from_sq, to_sq, flag);
+                to_bb &= to_bb - 1;
             }
-            
-            to_bb ^= (1ULL << to_sq);
         }
         
-        pawn_bb ^= (1ULL << from_sq);
+        pawn_bb &= pawn_bb - 1;
     }
 }
 
@@ -227,39 +245,59 @@ static void generate_knight_moves(move_t *move_arr, size_t *index, board *b) {
 
     while (knight_bb) {
         int from_sq = bit_scan(knight_bb);
-        push_bb(move_arr, index, b, from_sq, knight_attacks[from_sq]);
-        knight_bb ^= (1ULL << from_sq);
+        bitboard attack_bb = knight_attacks[from_sq];
+        push_attack_bb(move_arr, index, b, from_sq, attack_bb);
+        knight_bb &= knight_bb - 1;
     }
 }
 
-/* Helper function that populates the move array with king moves. */
+/* Helper function that populates the move array with king moves.
+ * Assumes that there is only one king per side.
+ */
 static void generate_king_moves(move_t *move_arr, size_t *index, board *b) {
     side s = b->play_side;
     bitboard king_bb = b->piece_bbs[KING][s];
 
-    while (king_bb) {
-        int from_sq = bit_scan(king_bb);
-        push_bb(move_arr, index, b, from_sq, king_attacks[from_sq]);
+    int from_sq = bit_scan(king_bb);
+    bitboard attack_bb = king_attacks[from_sq];
+    push_attack_bb(move_arr, index, b, from_sq, attack_bb);
 
-        // Castling
-        bitboard empty = (~(b->occupied_bbs[WHITE])) & (~(b->occupied_bbs[BLACK]));
-        bitboard side_shift = s * VERT_SHIFT * (SIDE_LEN - 1); // amount to shift path based on side
-        
-        bitboard king_castle_path = KING_CASTLE_PATH << side_shift;
-        bitboard queen_castle_path = QUEEN_CASTLE_PATH << side_shift;
-        
-        if (b->castling & CASTLE_ARR_START >> (s << 1) &&
-            (king_castle_path & empty) == king_castle_path) {
-            push_move(move_arr, index, from_sq, from_sq + 2, KING_CASTLE);
-        }
+    // Castling
+    bool can_king_castle = b->castling & CASTLE_ARR_START >> (s << 1);
+    bool can_queen_castle = b->castling & CASTLE_ARR_START >> (s << 1) >> 1;
 
-        if (b->castling & CASTLE_ARR_START >> (s << 1) >> 1 &&
-            (queen_castle_path & empty) == queen_castle_path) {
-            push_move(move_arr, index, from_sq, from_sq - 2, QUEEN_CASTLE);
-        }
-        
-        king_bb ^= (1ULL << from_sq);
+    bitboard empty_bb = ~(b->occupied_bbs[WHITE] | b->occupied_bbs[BLACK]);
+    bitboard king_castle_path = KING_CASTLE_PATH;
+    bitboard queen_castle_path = QUEEN_CASTLE_PATH;
+
+    if (s) {
+        int shift_amt = (SIDE_LEN - 1) << VERT_SHIFT_POWER;
+        king_castle_path <<= shift_amt;
+        queen_castle_path <<= shift_amt;
     }
+        
+    if (can_king_castle && (king_castle_path & empty_bb) == king_castle_path) {
+        push_move(move_arr, index, from_sq, from_sq + 2, KING_CASTLE);
+    }
+
+    if (can_queen_castle && (queen_castle_path & empty_bb) == queen_castle_path) {
+        push_move(move_arr, index, from_sq, from_sq - 2, QUEEN_CASTLE);
+    }
+}
+
+/* Helper function that generates a ray bitboard considering blockers, given a square and
+ * ray direction.
+ */
+static bitboard generate_ray_bitboard(board *b, ray_dir dir, int square) {
+    bitboard ray_bb = ray_attacks[square][dir];
+    bitboard blockers_bb = ray_bb & (b->occupied_bbs[WHITE] | b->occupied_bbs[BLACK]);
+
+    if (blockers_bb) {
+        int block_sq = (rays[dir].negative) ? bit_scan_reverse(blockers_bb) : bit_scan(blockers_bb);
+        ray_bb ^= ray_attacks[block_sq][dir];
+    }
+
+    return ray_bb;
 }
 
 /* Helper function that populates the move array with moves of any specified slider piece. */
@@ -269,23 +307,17 @@ static void generate_slider_moves(move_t *move_arr, size_t *index, board *b, pie
 
     while (piece_bb) {
         int from_sq = bit_scan(piece_bb);
-
+        bitboard attack_bb = 0;
+        
         for (int i = 0; i < RAY_DIRS + 1; i++) {
-            int ray_i = slider_ray_indices[p - BISHOP][i];
-            if (ray_i == -1) break;
+            int ray_index = slider_ray_indices[p - BISHOP][i];
+            if (ray_index == -1) break;
 
-            bitboard to_bb = ray_attacks[from_sq][ray_i];
-            bitboard blockers_bb = to_bb & (b->occupied_bbs[WHITE] | b->occupied_bbs[BLACK]);
-
-            if (blockers_bb) {
-                int block_sq = (rays[ray_i].negative) ? bit_scan_reverse(blockers_bb) : bit_scan(blockers_bb);
-                to_bb ^= ray_attacks[block_sq][ray_i];
-            }
-
-            push_bb(move_arr, index, b, from_sq, to_bb);
+            attack_bb |= generate_ray_bitboard(b, (ray_dir)ray_index, from_sq);
         }
 
-        piece_bb ^= (1ULL << from_sq);
+        push_attack_bb(move_arr, index, b, from_sq, attack_bb);
+        piece_bb &= piece_bb - 1;
     }
 }
 
@@ -309,6 +341,32 @@ void generate_moves(move_t *move_arr, size_t *length, board *board) {
     generate_slider_moves(move_arr, &index, board, QUEEN);
     
     *length = index;
+}
+
+bool is_in_check(board *b, side s) {
+    side opp_s = s == WHITE;
+    
+    bitboard king_bb = b->piece_bbs[KING][s];
+    int king_sq = bit_scan(king_bb);
+
+    if (pawn_attacks[opp_s][king_sq] & b->piece_bbs[PAWN][opp_s]) return true;
+    if (knight_attacks[king_sq] & b->piece_bbs[KNIGHT][opp_s]) return true;
+
+    bitboard rook_bb = 0;
+    for (int i = 0; i < RAY_DIRS; i += 2) {
+        rook_bb |= generate_ray_bitboard(b, (ray_dir)i, king_sq);
+    }
+
+    if (rook_bb & (b->piece_bbs[ROOK][opp_s] | b->piece_bbs[QUEEN][opp_s])) return true;
+
+    bitboard bishop_bb = 0;
+    for (int i = 1; i < RAY_DIRS; i += 2) {
+        bishop_bb |= generate_ray_bitboard(b, (ray_dir)i, king_sq);
+    }
+
+    if (bishop_bb & (b->piece_bbs[BISHOP][opp_s] | b->piece_bbs[QUEEN][opp_s])) return true;
+    
+    return false;
 }
 
 void print_move_list(move_t *move_arr, size_t length) {

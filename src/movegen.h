@@ -52,6 +52,13 @@ void init_attack_tables();
  */
 void generate_moves(move_t *move_arr, size_t *length, board *board);
 
+/* Function: is_in_check
+ * ----------------------
+ * The `is_in_check` function takes a board pointer and side, and outputs whether
+ * the side's king is in check.
+ */
+bool is_in_check(board *b, side s);
+
 /* Function: print_move_list
  * -------------------------
  * The `print_move_list` function takes a move_t array and its length and prints all

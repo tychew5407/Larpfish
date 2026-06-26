@@ -18,7 +18,7 @@
 
 /* DEFINITIONS */
 
-#define NO_EN_PASSANT -1 // Sentinel flag for ep_square
+#define NO_EN_PASSANT 64 // Sentinel flag for ep_square
 #define CASTLE_ARR_START (1 << 3) // Mask to access start of castling bitarray
 
 /* The board struct contains 12 piece bitboards total, with the first dimension being the
