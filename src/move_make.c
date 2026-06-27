@@ -78,6 +78,13 @@ static void remove_captured_piece(board *b, int to_sq, side move_s, move_flag f)
     clear_bit(capture_bb, capture_sq);
     clear_bit(&(b->occupied_bbs[capture_side]), capture_sq);
 
+    // Handle castling rights if captured piece is a rook
+    if (capture_piece == ROOK) {
+        b->castling &= ~(CASTLE_ARR_START >>
+                         ((unsigned int)to_sq == QUEEN_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN)) >>
+                         (2 * capture_side));
+    }
+
     move_stack[move_stack_index].captured_piece = capture_piece;
 }
 
@@ -146,7 +153,7 @@ void unmake_move(board *b, move_t move) {
 
     // Update board struct
     move_stack_index --;
-    b->play_side = (move_s == WHITE);
+    b->play_side = move_s;
     b->ep_square = move_stack[move_stack_index].ep_square;
     b->castling = move_stack[move_stack_index].castling;
     b->halfmove_clock = move_stack[move_stack_index].halfmove_clock;

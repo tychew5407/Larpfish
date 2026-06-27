@@ -83,3 +83,27 @@ bitboard *get_bitboard_from_ascii(board *b, char piece_c, side *s) {
 
     return NULL;
 }
+
+bool board_cmp(board a, board b) {
+    for (int i = 0; i < NUM_SIDES; i++) {
+        for (int j = 0; j < NUM_PIECES; j++) {
+            if (a.piece_bbs[j][i] != b.piece_bbs[j][i]) {
+                return false;
+            }
+        }
+
+        if (a.occupied_bbs[i] != b.occupied_bbs[i]) {
+            return false;
+        }
+    }
+
+    if (a.play_side != b.play_side ||
+        a.ep_square != b.ep_square ||
+        a.castling != b.castling ||
+        a.halfmove_clock != b.halfmove_clock ||
+        a.fullmove_counter != b.fullmove_counter) {
+        return false;
+    }
+
+    return true;
+}

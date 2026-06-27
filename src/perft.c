@@ -33,6 +33,7 @@ uint64_t perft(board *b, int depth) {
     generate_moves(move_list, &n_moves, b);
     
     for (size_t i = 0; i < n_moves; i++) {
+        /* board orig = *b; */
         make_move(b, move_list[i]);
 
         if (!is_in_check(b, b->play_side ^ 1)) {
@@ -40,6 +41,10 @@ uint64_t perft(board *b, int depth) {
         }
 
         unmake_move(b, move_list[i]);
+
+        /* if (!board_cmp(orig, *b)) { */
+        /*     printf("Unmake move failed!\n"); */
+        /* } */
     }
 
     return nodes;

@@ -208,7 +208,7 @@ static void generate_pawn_dblpush(move_t *move_arr, size_t *index, board *b) {
 /* Helper function that populates the move array with pawn attacks. */
 static void generate_pawn_attacks(move_t *move_arr, size_t *index, board *b) {
     side s = b->play_side;
-    bitboard ep_bb = 1ULL << b->ep_square;
+    bitboard ep_bb = (b->ep_square != NO_EN_PASSANT) ? 1ULL << b->ep_square : 0;
 
     bitboard pawn_bb = b->piece_bbs[PAWN][s];
 
@@ -349,7 +349,7 @@ bool is_in_check(board *b, side s) {
     bitboard king_bb = b->piece_bbs[KING][s];
     int king_sq = bit_scan(king_bb);
 
-    if (pawn_attacks[opp_s][king_sq] & b->piece_bbs[PAWN][opp_s]) return true;
+    if (pawn_attacks[s][king_sq] & b->piece_bbs[PAWN][opp_s]) return true;
     if (knight_attacks[king_sq] & b->piece_bbs[KNIGHT][opp_s]) return true;
 
     bitboard rook_bb = 0;

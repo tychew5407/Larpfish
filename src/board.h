@@ -18,7 +18,7 @@
 
 /* DEFINITIONS */
 
-#define NO_EN_PASSANT 64 // Sentinel flag for ep_square
+#define NO_EN_PASSANT -1 // Sentinel flag for ep_square
 #define CASTLE_ARR_START (1 << 3) // Mask to access start of castling bitarray
 
 /* The board struct contains 12 piece bitboards total, with the first dimension being the
@@ -83,5 +83,12 @@ bitboard *get_bitboard_from_square(board *b, int square, piece_t *p, side *s);
  * If s is valid, it is populated with the bitboard's associated side.
  */
 bitboard *get_bitboard_from_ascii(board *b, char piece_c, side *s);
+
+/* Function: board_cmp
+ * --------------------
+ * The `board_cmp` function takes two boards and returns whether they are
+ * equal to each other or not. Used for debugging purposes.
+ */
+bool board_cmp(board a, board b);
 
 #endif
