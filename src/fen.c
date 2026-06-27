@@ -115,21 +115,21 @@ static void encode_pieces(board *b, char **fen) {
 
             if (cur_bb) {
                 if (num_empty > 0) {
-                    char num_ch = '0' + num_empty;
-                    strncat(*fen, &num_ch, 1);
+                    char num_str[2] = {'0' + num_empty, '\0'};
+                    strcat(*fen, num_str);
                     num_empty = 0;
                 }
 
-                char piece_ch = PIECE_ASCII[piece] + ('a' - 'A') * side;
-                strncat(*fen, &piece_ch, 1);
+                char piece_str[2] = {PIECE_ASCII[piece] + ('a' - 'A') * side, '\0'};
+                strcat(*fen, piece_str);
             } else {
                 num_empty ++;
             }
         }
 
         if (num_empty > 0) {
-            char num_ch = '0' + num_empty;
-            strncat(*fen, &num_ch, 1);
+            char num_str[2] = {'0' + num_empty, '\0'};
+            strcat(*fen, num_str);
         }
 
         if (row > 0) {
@@ -146,8 +146,9 @@ static void encode_side(board *b, char **fen) {
     } else {
         side_ch = 'b';
     }
-    
-    strncat(*fen, &side_ch, 1);
+
+    char side_str[2] = {side_ch, '\0'};
+    strcat(*fen, side_str);
 }
 
 static void encode_castling(board *b, char **fen) {
@@ -159,8 +160,8 @@ static void encode_castling(board *b, char **fen) {
     for (int i = NUM_CASTLES - 1; i >= 0; i--) {
         unsigned char mask = 1 << i;
         if ((b->castling & mask) > 0) {
-            char castling_ch = CASTLE_ASCII[i];
-            strncat(*fen, &castling_ch, 1);
+            char castling_str[2] = {CASTLE_ASCII[i], '\0'};
+            strcat(*fen, castling_str);
         }
     }
 }
@@ -171,11 +172,13 @@ static void encode_ep(board *b, char **fen) {
         return;
     }
 
-    char file_ch = 'a' + get_file(b->ep_square);
-    char rank_ch = '1' + get_rank(b->ep_square);
+    char ep_str[3] = {
+        'a' + get_file(b->ep_square),
+        '1' + get_rank(b->ep_square),
+        '\0'
+    };
 
-    strncat(*fen, &file_ch, 1);
-    strncat(*fen, &rank_ch, 1);
+    strcat(*fen, ep_str);
 }
 
 static void encode_halfmove(board *b, char **fen) {

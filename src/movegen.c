@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include "movegen.h"
 
+/* PRECOMPUTED ATTACK TABLES/HELPERS */
+
 static const ray rays[RAY_DIRS] = {
     {NORTH, VERT_SHIFT, false, ~0},
     {NORTHEAST, VERT_SHIFT + 1, false, ~FILE_A},
@@ -29,6 +31,87 @@ static bitboard pawn_attacks[NUM_SIDES][NUM_SQUARES];
 static bitboard knight_attacks[NUM_SQUARES] = {0};
 static bitboard king_attacks[NUM_SQUARES] = {0};
 static bitboard ray_attacks[NUM_SQUARES][RAY_DIRS] = {0};
+
+/* HELPER FUNCTION PROTOTYPES */
+static void init_pawn_attacks();
+static void init_knight_attacks();
+static void init_king_attacks();
+static void init_ray_attacks();
+
+static bool square_attacked(board *b, int sq, side s);
+
+static void push_move(move_t *move_arr, size_t *index, int from_sq, int to_sq, move_flag flag);
+static void push_promotions(move_t *move_arr, size_t *index, int from_sq, int to_sq, bool capture);
+static void push_bb(move_t *move_arr, size_t *index, int from_sq, bitboard to_bb, move_flag flag);
+static void push_attack_bb(move_t *move_arr, size_t *index, board *b, int from_sq, bitboard attack_bb);
+
+static bitboard get_pawnpush_bb(bitboard pawn_bb, side s);
+static void generate_pawn_push(move_t *move_arr, size_t *index, board *b);
+static void generate_pawn_dblpush(move_t *move_arr, size_t *index, board *b);
+static void generate_pawn_attacks(move_t *move_arr, size_t *index, board *b);
+
+static void generate_knight_moves(move_t *move_arr, size_t *index, board *b);
+
+static void generate_king_moves(move_t *move_arr, size_t *index, board *b);
+
+static bitboard generate_ray_bitboard(board *b, ray_dir dir, int square);
+static void generate_slider_moves(move_t *move_arr, size_t *index, board *b, piece_t p);
+
+void init_attack_tables() {
+    init_pawn_attacks();
+    init_knight_attacks();
+    init_king_attacks();
+    init_ray_attacks();
+}
+
+void generate_moves(move_t *move_arr, size_t *length, board *board) {
+    size_t index = 0;
+
+    generate_pawn_dblpush(move_arr, &index, board);
+    generate_pawn_push(move_arr, &index, board);
+    generate_pawn_attacks(move_arr, &index, board);
+    generate_knight_moves(move_arr, &index, board);
+    generate_king_moves(move_arr, &index, board);
+    generate_slider_moves(move_arr, &index, board, BISHOP);
+    generate_slider_moves(move_arr, &index, board, ROOK);
+    generate_slider_moves(move_arr, &index, board, QUEEN);
+    
+    *length = index;
+}
+
+bool is_in_check(board *b, side s) {
+    bitboard king_bb = b->piece_bbs[KING][s];
+    int king_sq = bit_scan(king_bb);
+
+    return square_attacked(b, king_sq, s);
+}
+
+void print_move_list(move_t *move_arr, size_t length) {
+    const char* flag_names[16] = {
+        "QUIET",
+        "DOUBLE_PAWN_PUSH",
+        "KING_CASTLE",
+        "QUEEN_CASTLE",
+        "CAPTURE",
+        "EP_CAPTURE",
+        "",
+        "",
+        "KNIGHT_PROMO",
+        "BISHOP_PROMO",
+        "ROOK_PROMO",
+        "QUEEN_PROMO",
+        "KNIGHT_PROMO_CAPTURE",
+        "BISHOP_PROMO_CAPTURE",
+        "ROOK_PROMO_CAPTURE",
+        "QUEEN_PROMO_CAPTURE"
+    };
+    
+    for (size_t i = 0; i < length; i++) {
+        move_t cur = move_arr[i];
+
+        printf("Index %lu: FROM = %d, TO = %d, FLAG = %s\n", i, get_from(cur), get_to(cur), flag_names[get_flag(cur)]);
+    }
+}
 
 /* Helper function to precompute the pawn attack table. */
 static void init_pawn_attacks() {
@@ -113,8 +196,31 @@ static void init_ray_attacks() {
     }
 }
 
-static bitboard get_pawnpush_bb(bitboard pawn_bb, side s) {
-    return pawn_bb << VERT_SHIFT >> (s << VERT_SHIFT_POWER << 1);
+/* Helper function to detect whether a square on a particular board position is being attacked
+ * from the opposite side of s.
+ */
+static bool square_attacked(board *b, int sq, side s) {
+    side opp_s = s ^ 1;
+
+    if (pawn_attacks[s][sq] & b->piece_bbs[PAWN][opp_s]) return true;
+    if (knight_attacks[sq] & b->piece_bbs[KNIGHT][opp_s]) return true;
+    if (king_attacks[sq] & b->piece_bbs[KING][opp_s]) return true;
+
+    bitboard rook_bb = 0;
+    for (int i = 0; i < RAY_DIRS; i += 2) {
+        rook_bb |= generate_ray_bitboard(b, (ray_dir)i, sq);
+    }
+
+    if (rook_bb & (b->piece_bbs[ROOK][opp_s] | b->piece_bbs[QUEEN][opp_s])) return true;
+
+    bitboard bishop_bb = 0;
+    for (int i = 1; i < RAY_DIRS; i += 2) {
+        bishop_bb |= generate_ray_bitboard(b, (ray_dir)i, sq);
+    }
+
+    if (bishop_bb & (b->piece_bbs[BISHOP][opp_s] | b->piece_bbs[QUEEN][opp_s])) return true;
+    
+    return false;
 }
 
 /* Helper function to push a move to the move array. */
@@ -157,6 +263,12 @@ static void push_attack_bb(move_t *move_arr, size_t *index, board *b, int from_s
 
     push_bb(move_arr, index, from_sq, capture_bb, CAPTURE);
     push_bb(move_arr, index, from_sq, quiet_bb, QUIET);
+}
+
+/* Helper function for outputting a generalized pawn push bitboard regardless of side.
+ */
+static bitboard get_pawnpush_bb(bitboard pawn_bb, side s) {
+    return pawn_bb << VERT_SHIFT >> (s << VERT_SHIFT_POWER << 1);
 }
 
 /* Helper function that populates the move array with single pawn pushes. */
@@ -263,6 +375,10 @@ static void generate_king_moves(move_t *move_arr, size_t *index, board *b) {
     push_attack_bb(move_arr, index, b, from_sq, attack_bb);
 
     // Castling
+    if (is_in_check(b, s)) {
+        return;
+    }
+    
     bool can_king_castle = b->castling & CASTLE_ARR_START >> (s << 1);
     bool can_queen_castle = b->castling & CASTLE_ARR_START >> (s << 1) >> 1;
 
@@ -276,11 +392,15 @@ static void generate_king_moves(move_t *move_arr, size_t *index, board *b) {
         queen_castle_path <<= shift_amt;
     }
         
-    if (can_king_castle && (king_castle_path & empty_bb) == king_castle_path) {
+    if (can_king_castle &&
+        (king_castle_path & empty_bb) == king_castle_path &&
+        !square_attacked(b, from_sq + 1, s)) {
         push_move(move_arr, index, from_sq, from_sq + 2, KING_CASTLE);
     }
 
-    if (can_queen_castle && (queen_castle_path & empty_bb) == queen_castle_path) {
+    if (can_queen_castle &&
+        (queen_castle_path & empty_bb) == queen_castle_path &&
+        !square_attacked(b, from_sq - 1, s)) {
         push_move(move_arr, index, from_sq, from_sq - 2, QUEEN_CASTLE);
     }
 }
@@ -318,80 +438,5 @@ static void generate_slider_moves(move_t *move_arr, size_t *index, board *b, pie
 
         push_attack_bb(move_arr, index, b, from_sq, attack_bb);
         piece_bb &= piece_bb - 1;
-    }
-}
-
-void init_attack_tables() {
-    init_pawn_attacks();
-    init_knight_attacks();
-    init_king_attacks();
-    init_ray_attacks();
-}
-
-void generate_moves(move_t *move_arr, size_t *length, board *board) {
-    size_t index = 0;
-
-    generate_pawn_dblpush(move_arr, &index, board);
-    generate_pawn_push(move_arr, &index, board);
-    generate_pawn_attacks(move_arr, &index, board);
-    generate_knight_moves(move_arr, &index, board);
-    generate_king_moves(move_arr, &index, board);
-    generate_slider_moves(move_arr, &index, board, BISHOP);
-    generate_slider_moves(move_arr, &index, board, ROOK);
-    generate_slider_moves(move_arr, &index, board, QUEEN);
-    
-    *length = index;
-}
-
-bool is_in_check(board *b, side s) {
-    side opp_s = s == WHITE;
-    
-    bitboard king_bb = b->piece_bbs[KING][s];
-    int king_sq = bit_scan(king_bb);
-
-    if (pawn_attacks[s][king_sq] & b->piece_bbs[PAWN][opp_s]) return true;
-    if (knight_attacks[king_sq] & b->piece_bbs[KNIGHT][opp_s]) return true;
-
-    bitboard rook_bb = 0;
-    for (int i = 0; i < RAY_DIRS; i += 2) {
-        rook_bb |= generate_ray_bitboard(b, (ray_dir)i, king_sq);
-    }
-
-    if (rook_bb & (b->piece_bbs[ROOK][opp_s] | b->piece_bbs[QUEEN][opp_s])) return true;
-
-    bitboard bishop_bb = 0;
-    for (int i = 1; i < RAY_DIRS; i += 2) {
-        bishop_bb |= generate_ray_bitboard(b, (ray_dir)i, king_sq);
-    }
-
-    if (bishop_bb & (b->piece_bbs[BISHOP][opp_s] | b->piece_bbs[QUEEN][opp_s])) return true;
-    
-    return false;
-}
-
-void print_move_list(move_t *move_arr, size_t length) {
-    const char* flag_names[16] = {
-        "QUIET",
-        "DOUBLE_PAWN_PUSH",
-        "KING_CASTLE",
-        "QUEEN_CASTLE",
-        "CAPTURE",
-        "EP_CAPTURE",
-        "",
-        "",
-        "KNIGHT_PROMO",
-        "BISHOP_PROMO",
-        "ROOK_PROMO",
-        "QUEEN_PROMO",
-        "KNIGHT_PROMO_CAPTURE",
-        "BISHOP_PROMO_CAPTURE",
-        "ROOK_PROMO_CAPTURE",
-        "QUEEN_PROMO_CAPTURE"
-    };
-    
-    for (size_t i = 0; i < length; i++) {
-        move_t cur = move_arr[i];
-
-        printf("Index %lu: FROM = %d, TO = %d, FLAG = %s\n", i, get_from(cur), get_to(cur), flag_names[get_flag(cur)]);
     }
 }

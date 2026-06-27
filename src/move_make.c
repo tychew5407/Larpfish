@@ -79,7 +79,9 @@ static void remove_captured_piece(board *b, int to_sq, side move_s, move_flag f)
     clear_bit(&(b->occupied_bbs[capture_side]), capture_sq);
 
     // Handle castling rights if captured piece is a rook
-    if (capture_piece == ROOK) {
+    if (capture_piece == ROOK &&
+        ((unsigned int)to_sq == KING_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN) ||
+         (unsigned int)to_sq == QUEEN_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN))) {
         b->castling &= ~(CASTLE_ARR_START >>
                          ((unsigned int)to_sq == QUEEN_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN)) >>
                          (2 * capture_side));
