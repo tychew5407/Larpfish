@@ -15,14 +15,9 @@ const char PIECE_ASCII[NUM_PIECES] = {'P', 'N', 'B', 'R', 'Q', 'K'};
 const char CASTLE_ASCII[NUM_CASTLES] = {'q', 'k', 'Q', 'K'};
 
 void initialize_board(board *b) {
-    for (int i = 0; i < NUM_SIDES; i++) {
-        for (int j = 0; j < NUM_PIECES; j++) {
-            b->piece_bbs[j][i] = 0;
-        }
-
-        b->occupied_bbs[i] = 0;
-    }
-
+    memset(b->piece_bbs, 0, sizeof(b->piece_bbs));
+    memset(b->occupied_bbs, 0, sizeof(b->occupied_bbs));
+    memset(b->piece_mailbox, NO_PIECE, sizeof(b->piece_mailbox));
     b->play_side = WHITE;
     b->ep_square = NO_EN_PASSANT;
     b->castling = 0;
@@ -50,34 +45,40 @@ void print_board(board *b) {
 }
 
 bitboard *get_bitboard_from_square(board *b, int square, piece_t *p, side *s) {
-    for (int i = 0; i < NUM_PIECES; i++) {
-        for (int j = 0; j < NUM_SIDES; j++) {
-            if (get_bit(b->piece_bbs[i][j], square)) {
-                if (p) {
-                    *p = i;
-                }
+    piece_t bb_piece = b->piece_mailbox[square];
 
-                if (s) {
-                    *s = j;
-                }
+    if (bb_piece == NO_PIECE) {
+        return NULL;
+    }
+    
+    side bb_side = b->side_mailbox[square];
 
-                return &(b->piece_bbs[i][j]);
-            }
-        }
+    if (p) {
+        *p = bb_piece;
     }
 
-    return NULL;
+    if (s) {
+        *s = bb_side;
+    }
+
+    return &(b->piece_bbs[bb_piece][bb_side]);
 }
 
-bitboard *get_bitboard_from_ascii(board *b, char piece_c, side *s) {
+bitboard *get_bitboard_from_ascii(board *b, char piece_c, piece_t *p, side *s) {
     for (int i = 0; i < NUM_PIECES; i++) {
         if (PIECE_ASCII[i] == piece_c ||
             PIECE_ASCII[i] + ('a' - 'A') == piece_c) {
+            if (p) {
+                *p = i;
+            }
+
+            side bb_side = (PIECE_ASCII[i] + ('a' - 'A') == piece_c);
+            
             if (s) {
-                *s = (PIECE_ASCII[i] + ('a' - 'A') == piece_c);
+                *s = bb_side;
             }
             
-            return &(b->piece_bbs[i][*s]);
+            return &(b->piece_bbs[i][bb_side]);
         }
     }
 

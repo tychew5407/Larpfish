@@ -57,12 +57,15 @@ static void parse_pieces(board *b, char *pieces_str) {
             continue;
         }
 
+        piece_t cur_piece;
         side cur_side;
-        bitboard *cur_bb = get_bitboard_from_ascii(b, pieces_str[i], &cur_side);
+        bitboard *cur_bb = get_bitboard_from_ascii(b, pieces_str[i], &cur_piece, &cur_side);
 
         if (cur_bb) {
             set_bit(cur_bb, square);
             set_bit(&(b->occupied_bbs[cur_side]), square);
+            b->piece_mailbox[square] = cur_piece;
+            b->side_mailbox[square] = cur_side;
             square ++;
         } else {
             square += pieces_str[i] - '0';

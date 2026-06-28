@@ -40,6 +40,8 @@
 typedef struct {
     bitboard piece_bbs[NUM_PIECES][NUM_SIDES];
     bitboard occupied_bbs[NUM_SIDES];
+    piece_t piece_mailbox[NUM_SQUARES];
+    side side_mailbox[NUM_SQUARES];
     side play_side;
     int ep_square;
     unsigned char castling;
@@ -82,7 +84,7 @@ bitboard *get_bitboard_from_square(board *b, int square, piece_t *p, side *s);
  *
  * If s is valid, it is populated with the bitboard's associated side.
  */
-bitboard *get_bitboard_from_ascii(board *b, char piece_c, side *s);
+bitboard *get_bitboard_from_ascii(board *b, char piece_c, piece_t *p, side *s);
 
 /* Function: board_cmp
  * --------------------

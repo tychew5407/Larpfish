@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <assert.h>
 #include "definitions.h"
 
 /* DEFINITIONS */
@@ -24,7 +25,9 @@ typedef uint64_t bitboard;
  * and sets the bit corresponding to the square (using LERF-mapping) of the bitboard
  * to 1. Assumes `bb` points to a valid bitboard and that `square` is between 0 and 63.
  */
-void set_bit(bitboard *bb, int square);
+static inline void set_bit(bitboard *bb, int square) {
+    *bb |= (1ULL << square);
+}
 
 /* Function: clear_bit
  * --------------------
@@ -32,7 +35,9 @@ void set_bit(bitboard *bb, int square);
  * and sets the bit corresponding to the square (using LERF-mapping) of the bitboard
  * to 0.
  */
-void clear_bit(bitboard *bb, int square);
+static inline void clear_bit(bitboard *bb, int square) {
+    *bb &= ~(1ULL << square);
+}
 
 /* Function: get_bit
  * ------------------
@@ -40,35 +45,45 @@ void clear_bit(bitboard *bb, int square);
  * value of the bit corresponding to the square (using LERF-mapping) of the bitboard
  * via a boolean value.
  */
-bool get_bit(bitboard bb, int square);
+static inline bool get_bit(bitboard bb, int square) {
+    return (bb & (1ULL << square)) > 0;
+}
 
 /* Function: get_file
  * -------------------
  * The `get_file` function takes an int square value and outputs its corresponding
  * file (zero-based, i.e. 0-7).
  */
-int get_file(int square);
+static inline int get_file(int square) {
+    return square & (SIDE_LEN - 1);
+}
 
 /* Function: get_rank
  * --------------------
  * The `get_rank` function takes an int square value and outputs its corresponding
  * rank (zero-based, i.e. 0-7).
  */
-int get_rank(int square);
+static inline int get_rank(int square) {
+    return square >> SIDE_LEN_POWER;
+}
 
-/* Function: bit_scan
- * -------------------
- * The `bit_scan` function takes a bitboard value and outputs the index of its LS1B.
- * Implemented using De Bruijn multiplication. Assumes that bb != 0.
+/* Function: bit_scan_foward
+ * --------------------------
+ * The `bit_scan_foward` function takes a bitboard and outputs the index of its LS1B.
  */
-int bit_scan(bitboard bb);
+static inline int bit_scan_forward(bitboard bb) {
+    assert(bb != 0);
+    return __builtin_ctzll(bb);
+}
 
 /* Function: bit_scan_reverse
- * -------------------
- * The `bit_scan_reverse` function takes a bitboard value and outputs the index of its MS1B.
- * Implemented using De Bruijn multiplication. Assumes that bb != 0.
+ * ---------------------------
+ * The `bit_scan_reverse` function takes a bitboard and outputs the index of its MS1B.
  */
-int bit_scan_reverse(bitboard bb);
+static inline int bit_scan_reverse(bitboard bb) {
+    assert(bb != 0);
+    return 63 - __builtin_clzll(bb);
+}
 
 /* Function: print_bitboard
  * -------------------------

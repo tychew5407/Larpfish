@@ -4,7 +4,11 @@
 - Bitboard with LERF-mapping
 
 ## Move Generation
-- Lookup attack tables via precomputation and magic bitboards
+- Lookup attack tables via precomputation (TODO: magic bitboards)
+
+## Evaluation
+- Trivial material count
+- TODO: 50-move rule, draw by repetition, etc.
 
 ## Known limitations / future work
 
@@ -19,6 +23,6 @@
 ### MILESTONE 2:
 - [x] Create move representation
 - [x] Create move helper getter/setter functions (from/to)
-- [ ] Create psuedo-legal move generation
+- [x] Create psuedo-legal move generation
 - [x] Create make_move and unmake_move functions
-- [ ] Build Perft test harness for move generation
+- [x] Build Perft test harness for move generation

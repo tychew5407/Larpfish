@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -O2 -std=c99
+CFLAGS = -g -Wall -Wextra -O3 -march=native -std=c99
 SRC_DIR = src
 BUILD_DIR = build
 

@@ -53,10 +53,10 @@ static void update_castling(board *b, int from_sq, piece_t move_p, side move_s) 
         b->castling &= ~(CASTLE_ARR_START >> (2 * move_s));
         b->castling &= ~(CASTLE_ARR_START >> 1 >> (2 * move_s));
     } else if (move_p == ROOK &&
-               ((unsigned int)from_sq == KING_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN) ||
-                (unsigned int)from_sq == QUEEN_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN))) {
+               (from_sq == KING_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN) ||
+                from_sq == QUEEN_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN))) {
         b->castling &= ~(CASTLE_ARR_START >>
-                         ((unsigned int)from_sq == QUEEN_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN)) >>
+                         (from_sq == QUEEN_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN)) >>
                          (2 * move_s));
     }
 }
@@ -77,13 +77,14 @@ static void remove_captured_piece(board *b, int to_sq, side move_s, move_flag f)
 
     clear_bit(capture_bb, capture_sq);
     clear_bit(&(b->occupied_bbs[capture_side]), capture_sq);
+    b->piece_mailbox[capture_sq] = NO_PIECE;
 
     // Handle castling rights if captured piece is a rook
     if (capture_piece == ROOK &&
-        ((unsigned int)to_sq == KING_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN) ||
-         (unsigned int)to_sq == QUEEN_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN))) {
+        (to_sq == KING_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN) ||
+         to_sq == QUEEN_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN))) {
         b->castling &= ~(CASTLE_ARR_START >>
-                         ((unsigned int)to_sq == QUEEN_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN)) >>
+                         (to_sq == QUEEN_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN)) >>
                          (2 * capture_side));
     }
 
@@ -94,29 +95,23 @@ void make_move(board *b, move_t move) {
     int from_sq = get_from(move);
     int to_sq = get_to(move);
     move_flag move_f = get_flag(move);
-
-    piece_t move_p;
     side move_s;
-    bitboard *from_bb = get_bitboard_from_square(b, from_sq, &move_p, &move_s);
-    bitboard *to_bb;
+
+    piece_t from_p;
+    bitboard *from_bb = get_bitboard_from_square(b, from_sq, &from_p, &move_s);
+
+    piece_t to_p = (move_f & PROMO_FLAG) ? (piece_t)((move_f & SPECIAL_FLAG) + KNIGHT) : from_p;
+    bitboard *to_bb = &(b->piece_bbs[to_p][move_s]);
 
     // Update board struct
-    update_move_counters(b, move_p, move_s, move_f);
+    update_move_counters(b, from_p, move_s, move_f);
     update_playside(b, move_s);
     update_ep(b, to_sq, move_s, move_f);
-    update_castling(b, from_sq, move_p, move_s);
+    update_castling(b, from_sq, from_p, move_s);
 
     // Handle capturing
     if (move_f & CAPTURE_FLAG) {
         remove_captured_piece(b, to_sq, move_s, move_f);
-    }
-
-    // Handle promotion
-    if (move_f & PROMO_FLAG) {
-        piece_t promo_piece = (move_f & SPECIAL_FLAG) + KNIGHT; 
-        to_bb = &(b->piece_bbs[promo_piece][move_s]);
-    } else {
-        to_bb = from_bb;
     }
 
     // Handle castling
@@ -130,15 +125,21 @@ void make_move(board *b, move_t move) {
         
         clear_bit(&(b->piece_bbs[ROOK][move_s]), rook_from);
         clear_bit(&(b->occupied_bbs[move_s]), rook_from);
+        b->piece_mailbox[rook_from] = NO_PIECE;
         set_bit(&(b->piece_bbs[ROOK][move_s]), rook_to);
         set_bit(&(b->occupied_bbs[move_s]), rook_to);
+        b->piece_mailbox[rook_to] = ROOK;
+        b->side_mailbox[rook_to] = move_s;
     }
 
     // Move piece
     clear_bit(from_bb, from_sq);
     clear_bit(&(b->occupied_bbs[move_s]), from_sq);
+    b->piece_mailbox[from_sq] = NO_PIECE;
     set_bit(to_bb, to_sq);
     set_bit(&(b->occupied_bbs[move_s]), to_sq);
+    b->piece_mailbox[to_sq] = to_p;
+    b->side_mailbox[to_sq] = move_s;
 
     move_stack_index ++;
 }
@@ -147,10 +148,11 @@ void unmake_move(board *b, move_t move) {
     int from_sq = get_from(move);
     int to_sq = get_to(move);
     move_flag move_f = get_flag(move);
-
-    piece_t move_p;
     side move_s;
-    bitboard *from_bb = get_bitboard_from_square(b, to_sq, &move_p, &move_s);
+    
+    piece_t from_p;
+    bitboard *from_bb = get_bitboard_from_square(b, to_sq, &from_p, &move_s);
+
     bitboard *to_bb = from_bb;
 
     // Update board struct
@@ -177,11 +179,14 @@ void unmake_move(board *b, move_t move) {
 
         set_bit(capture_bb, capture_sq);
         set_bit(&(b->occupied_bbs[capture_s]), capture_sq);
+        b->piece_mailbox[capture_sq] = capture_p;
+        b->side_mailbox[capture_sq] = capture_s;
     }
 
     // Handle promotion
     if (move_f & PROMO_FLAG) {
         from_bb = &(b->piece_bbs[PAWN][move_s]);
+        from_p = PAWN;
     }
 
     // Handle castling
@@ -195,13 +200,20 @@ void unmake_move(board *b, move_t move) {
         
         set_bit(&(b->piece_bbs[ROOK][move_s]), rook_from);
         set_bit(&(b->occupied_bbs[move_s]), rook_from);
+        b->piece_mailbox[rook_from] = ROOK;
+        b->side_mailbox[rook_from] = move_s;
         clear_bit(&(b->piece_bbs[ROOK][move_s]), rook_to);
         clear_bit(&(b->occupied_bbs[move_s]), rook_to);
+        b->piece_mailbox[rook_to] = NO_PIECE;
     }
 
     // Undo piece move
     set_bit(from_bb, from_sq);
     set_bit(&(b->occupied_bbs[move_s]), from_sq);
+    b->piece_mailbox[from_sq] = from_p;
+    b->side_mailbox[from_sq] = move_s;
+    
     clear_bit(to_bb, to_sq);
     clear_bit(&(b->occupied_bbs[move_s]), to_sq);
+    b->piece_mailbox[to_sq] = NO_PIECE;
 }

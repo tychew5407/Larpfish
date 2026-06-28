@@ -81,7 +81,7 @@ void generate_moves(move_t *move_arr, size_t *length, board *board) {
 
 bool is_in_check(board *b, side s) {
     bitboard king_bb = b->piece_bbs[KING][s];
-    int king_sq = bit_scan(king_bb);
+    int king_sq = bit_scan_forward(king_bb);
 
     return square_attacked(b, king_sq, s);
 }
@@ -244,7 +244,7 @@ static void push_promotions(move_t *move_arr, size_t *index, int from_sq, int to
  */
 static void push_bb(move_t *move_arr, size_t *index, int from_sq, bitboard to_bb, move_flag flag) {
     while (to_bb) {
-        int to_sq = bit_scan(to_bb);
+        int to_sq = bit_scan_forward(to_bb);
         push_move(move_arr, index, from_sq, to_sq, flag);
         to_bb &= to_bb - 1;
     }
@@ -282,7 +282,7 @@ static void generate_pawn_push(move_t *move_arr, size_t *index, board *b) {
     bitboard pawn_push_bb = to_bb ^ pawn_promote_bb;
 
     while (pawn_promote_bb) {
-        int to_sq = bit_scan(pawn_promote_bb);
+        int to_sq = bit_scan_forward(pawn_promote_bb);
         int from_sq = (s == WHITE) ? to_sq - VERT_SHIFT : to_sq + VERT_SHIFT;
 
         push_promotions(move_arr, index, from_sq, to_sq, false);
@@ -290,7 +290,7 @@ static void generate_pawn_push(move_t *move_arr, size_t *index, board *b) {
     }
     
     while (pawn_push_bb) {
-        int to_sq = bit_scan(pawn_push_bb);
+        int to_sq = bit_scan_forward(pawn_push_bb);
         int from_sq = (s == WHITE) ? to_sq - VERT_SHIFT : to_sq + VERT_SHIFT;
 
         push_move(move_arr, index, from_sq, to_sq, QUIET);
@@ -309,7 +309,7 @@ static void generate_pawn_dblpush(move_t *move_arr, size_t *index, board *b) {
     double_push_bb &= (s == WHITE) ? RANK_4 : RANK_5;
 
     while (double_push_bb) {
-        int to_sq = bit_scan(double_push_bb);
+        int to_sq = bit_scan_forward(double_push_bb);
         int from_sq = to_sq - (VERT_SHIFT << 1) + (s * (VERT_SHIFT << 2));
 
         push_move(move_arr, index, from_sq, to_sq, DOUBLE_PAWN_PUSH);
@@ -325,7 +325,7 @@ static void generate_pawn_attacks(move_t *move_arr, size_t *index, board *b) {
     bitboard pawn_bb = b->piece_bbs[PAWN][s];
 
     while (pawn_bb) {
-        int from_sq = bit_scan(pawn_bb);
+        int from_sq = bit_scan_forward(pawn_bb);
         bitboard to_bb = pawn_attacks[s][from_sq];
         to_bb &= (b->occupied_bbs[s == WHITE] | ep_bb);
 
@@ -333,13 +333,13 @@ static void generate_pawn_attacks(move_t *move_arr, size_t *index, board *b) {
 
         if (promote) {
             while (to_bb) {
-                int to_sq = bit_scan(to_bb);
+                int to_sq = bit_scan_forward(to_bb);
                 push_promotions(move_arr, index, from_sq, to_sq, true);
                 to_bb &= to_bb - 1;
             }
         } else {
             while (to_bb) {
-                int to_sq = bit_scan(to_bb);
+                int to_sq = bit_scan_forward(to_bb);
                 move_flag flag = (to_sq == b->ep_square) ? EP_CAPTURE : CAPTURE;
                 push_move(move_arr, index, from_sq, to_sq, flag);
                 to_bb &= to_bb - 1;
@@ -356,7 +356,7 @@ static void generate_knight_moves(move_t *move_arr, size_t *index, board *b) {
     bitboard knight_bb = b->piece_bbs[KNIGHT][s];
 
     while (knight_bb) {
-        int from_sq = bit_scan(knight_bb);
+        int from_sq = bit_scan_forward(knight_bb);
         bitboard attack_bb = knight_attacks[from_sq];
         push_attack_bb(move_arr, index, b, from_sq, attack_bb);
         knight_bb &= knight_bb - 1;
@@ -370,7 +370,7 @@ static void generate_king_moves(move_t *move_arr, size_t *index, board *b) {
     side s = b->play_side;
     bitboard king_bb = b->piece_bbs[KING][s];
 
-    int from_sq = bit_scan(king_bb);
+    int from_sq = bit_scan_forward(king_bb);
     bitboard attack_bb = king_attacks[from_sq];
     push_attack_bb(move_arr, index, b, from_sq, attack_bb);
 
@@ -413,7 +413,7 @@ static bitboard generate_ray_bitboard(board *b, ray_dir dir, int square) {
     bitboard blockers_bb = ray_bb & (b->occupied_bbs[WHITE] | b->occupied_bbs[BLACK]);
 
     if (blockers_bb) {
-        int block_sq = (rays[dir].negative) ? bit_scan_reverse(blockers_bb) : bit_scan(blockers_bb);
+        int block_sq = (rays[dir].negative) ? bit_scan_reverse(blockers_bb) : bit_scan_forward(blockers_bb);
         ray_bb ^= ray_attacks[block_sq][dir];
     }
 
@@ -426,7 +426,7 @@ static void generate_slider_moves(move_t *move_arr, size_t *index, board *b, pie
     bitboard piece_bb = b->piece_bbs[p][s];
 
     while (piece_bb) {
-        int from_sq = bit_scan(piece_bb);
+        int from_sq = bit_scan_forward(piece_bb);
         bitboard attack_bb = 0;
         
         for (int i = 0; i < RAY_DIRS + 1; i++) {

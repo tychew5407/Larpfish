@@ -49,7 +49,7 @@
 /* PIECE ENUMS */
 typedef enum {
     WHITE,
-    BLACK
+    BLACK,
 } side;
 
 typedef enum {
@@ -58,7 +58,8 @@ typedef enum {
     BISHOP,
     ROOK,
     QUEEN,
-    KING
+    KING,
+    NO_PIECE = -1
 } piece_t;
 
 #endif
