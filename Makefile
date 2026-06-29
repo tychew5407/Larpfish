@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -Wall -Wextra -O3 -march=native -std=c99
+CFLAGS = -g -Wall -Wextra -O0 -march=native -std=c99
 SRC_DIR = src
 BUILD_DIR = build
 
@@ -11,7 +11,7 @@ MAGIC_SRCS = $(SRC_DIR)/generate_magic.c $(SRC_DIR)/bitboard.c
 MAGIC_OBJS = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(MAGIC_SRCS))
 
 PERFT_SRCS = $(SRC_DIR)/perft.c $(SRC_DIR)/bitboard.c $(SRC_DIR)/board.c \
-             $(SRC_DIR)/move.c $(SRC_DIR)/movegen.c $(SRC_DIR)/move_make.c \
+             $(SRC_DIR)/movegen.c $(SRC_DIR)/move_make.c \
              $(SRC_DIR)/fen.c
 PERFT_OBJS = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(PERFT_SRCS))
 

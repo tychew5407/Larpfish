@@ -45,6 +45,8 @@ void print_board(board *b) {
 }
 
 bitboard *get_bitboard_from_square(board *b, int square, piece_t *p, side *s) {
+    // TODO: replace piece/side pointers with mailbox lookups at callers,
+    // then make this function static inline
     piece_t bb_piece = b->piece_mailbox[square];
 
     if (bb_piece == NO_PIECE) {

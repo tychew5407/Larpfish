@@ -46,51 +46,74 @@ typedef enum {
 
 /* FUNCTION PROTOTYPES */
 
-/* Function: encode_move
- * ----------------------
- * The `encode_move` function takes from/to squares and move_flag, outputs
- * the corresponding encoded move type.
- */
-move_t encode_move(int from_sq, int to_sq, move_flag flag);
-
 /* Function: get_from
  * -------------------
  * The `get_from` function takes a move_t and outputs its corresponding from
  * square.
  */
-int get_from(move_t move);
+static inline int get_from(move_t move) {
+    return (move & FROM_MASK) >> (SQ_MASK_LEN + FLAG_MASK_LEN);
+}
 
 /* Function: get_to
  * -----------------
  * The `get_to` function takes a move_t and outputs its corresponding to square.
  */
-int get_to(move_t move);
+static inline int get_to(move_t move) {
+    return (move & TO_MASK) >> FLAG_MASK_LEN;
+}
 
 /* Function: get_flag
  * -------------------
  * The `get_flag` function takes a move_t and outputs its corresponding move_flag enum.
  */
-move_flag get_flag(move_t move);
+static inline move_flag get_flag(move_t move) {
+    return (move & FLAG_MASK);
+}
 
 /* Function: set_from
  * -------------------
  * The `set_from` function takes a move_t pointer `move` and new square and sets the from
  * square of `move` to the new square.
  */
-void set_from(move_t *move, int square);
+static inline void set_from(move_t *move, int square) {
+    *move &= ~FROM_MASK;
+    *move |= square << (SQ_MASK_LEN + FLAG_MASK_LEN);
+}
 
 /* Function: set_to
  * -----------------
  * The `set_to` function takes a move_t pointer `move` and new square and sets the to
  * square of `move` to the new square.
  */
-void set_to(move_t *move, int square);
+static inline void set_to(move_t *move, int square) {
+    *move &= ~TO_MASK;
+    *move |= square << (FLAG_MASK_LEN);
+}
 
 /* Function: set_flag
  * -------------------
  * The `set_flag` function takes a move_t pointer `move` and move_flag and sets the move flag
  * of `move` to the corresponding move_flag.
  */
-void set_flag(move_t *move, move_flag flag);
+static inline void set_flag(move_t *move, move_flag flag) {
+    *move &= ~FLAG_MASK;
+    *move |= flag;
+}
+
+/* Function: encode_move
+ * ----------------------
+ * The `encode_move` function takes from/to squares and move_flag, outputs
+ * the corresponding encoded move type.
+ */
+static inline move_t encode_move(int from_sq, int to_sq, move_flag flag) {
+    move_t result = 0;
+
+    set_from(&result, from_sq);
+    set_to(&result, to_sq);
+    set_flag(&result, flag);
+
+    return result;
+}
 
 #endif

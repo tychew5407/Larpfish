@@ -53,10 +53,10 @@ static void update_castling(board *b, int from_sq, piece_t move_p, side move_s) 
         b->castling &= ~(CASTLE_ARR_START >> (2 * move_s));
         b->castling &= ~(CASTLE_ARR_START >> 1 >> (2 * move_s));
     } else if (move_p == ROOK &&
-               (from_sq == KING_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN) ||
-                from_sq == QUEEN_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN))) {
+               ((unsigned int)from_sq == KING_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN) ||
+                (unsigned int)from_sq == QUEEN_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN))) {
         b->castling &= ~(CASTLE_ARR_START >>
-                         (from_sq == QUEEN_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN)) >>
+                         ((unsigned int)from_sq == QUEEN_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN)) >>
                          (2 * move_s));
     }
 }
@@ -81,10 +81,10 @@ static void remove_captured_piece(board *b, int to_sq, side move_s, move_flag f)
 
     // Handle castling rights if captured piece is a rook
     if (capture_piece == ROOK &&
-        (to_sq == KING_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN) ||
-         to_sq == QUEEN_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN))) {
+        ((unsigned int)to_sq == KING_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN) ||
+         (unsigned int)to_sq == QUEEN_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN))) {
         b->castling &= ~(CASTLE_ARR_START >>
-                         (to_sq == QUEEN_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN)) >>
+                         ((unsigned int)to_sq == QUEEN_ROOK_START + (capture_side * (SIDE_LEN - 1) * SIDE_LEN)) >>
                          (2 * capture_side));
     }
 
@@ -215,5 +215,7 @@ void unmake_move(board *b, move_t move) {
     
     clear_bit(to_bb, to_sq);
     clear_bit(&(b->occupied_bbs[move_s]), to_sq);
-    b->piece_mailbox[to_sq] = NO_PIECE;
+    if (!(move_f & CAPTURE_FLAG) || move_f == EP_CAPTURE) {
+        b->piece_mailbox[to_sq] = NO_PIECE;
+    }
 }

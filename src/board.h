@@ -3,8 +3,9 @@
  * This file contains the implementation of the board struct, which will
  * contain information about the state of the board and the game.
  *
- * This project uses bitboards with little endian rank-file mapping (LERF-mapping)
- * to represent the board.
+ * This project uses a redundant hybrid representation with bitboards using
+ * little endian rank-file mapping (LERF-mapping) and piece/side mailboxes to
+ * represent the board.
  */
 
 #ifndef BOARD_H
@@ -36,17 +37,22 @@
  * - `halfmove_clock` specifies a decimal number of half moves with respect to the 50 move
  *   draw rule.
  * - `fullmove_counter` specifies the number of full turns in the game.
+ * - `game_ended` specifies whether the game has ended or not.
  */
 typedef struct {
     bitboard piece_bbs[NUM_PIECES][NUM_SIDES];
     bitboard occupied_bbs[NUM_SIDES];
+    
     piece_t piece_mailbox[NUM_SQUARES];
     side side_mailbox[NUM_SQUARES];
+    
     side play_side;
     int ep_square;
     unsigned char castling;
     unsigned int halfmove_clock;
     unsigned int fullmove_counter;
+
+    bool game_ended;
 } board;
 
 /* FUNCTION PROTOTYPES */
