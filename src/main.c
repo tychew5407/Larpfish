@@ -30,8 +30,12 @@ int main(int argc, char *argv[]) {
     init_attack_tables();
     parse_fen(&board, fen);
 
+    bool user = false;
+    if (argc > 2 && !strcmp(argv[2], "-u")) user = true;
+
     while (true) {
         print_board(&board);
+        printf("\n");
         
         move_t best_move = nega_max(&board);
 
@@ -42,16 +46,18 @@ int main(int argc, char *argv[]) {
 
         make_move(&board, best_move);
         print_board(&board);
-        printf("Best move: %d, Eval: %d\n", best_move, -evaluate(&board));
-        
-        move_t user_move;
-        printf("Enter your move (type 0 to quit): ");
-        scanf("%hu", &user_move);
+        printf("Best move: %d, Eval: %d\n\n", best_move, -evaluate(&board));
 
-        if (user_move == NO_MOVE) {
-            break;
+        if (user) {
+            move_t user_move;
+            printf("Enter your move (type 0 to quit): ");
+            scanf("%hu", &user_move);
+
+            if (user_move == NO_MOVE) {
+                break;
+            }
+            make_move(&board, user_move);
         }
-        make_move(&board, user_move);
     }
     
     
