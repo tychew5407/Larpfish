@@ -70,10 +70,10 @@ static void remove_captured_piece(board *b, int to_sq, side move_s, move_flag f)
     } else {
         capture_sq = to_sq;
     }
-        
-    side capture_side;
-    piece_t capture_piece;
-    bitboard *capture_bb = get_bitboard_from_square(b, capture_sq, &capture_piece, &capture_side);
+
+    piece_t capture_piece = piece_on(b, capture_sq);
+    side capture_side = side_on(b, capture_sq);
+    bitboard *capture_bb = get_bitboard_from_square(b, capture_sq);
 
     clear_bit(capture_bb, capture_sq);
     clear_bit(&(b->occupied_bbs[capture_side]), capture_sq);
@@ -95,10 +95,10 @@ void make_move(board *b, move_t move) {
     int from_sq = get_from(move);
     int to_sq = get_to(move);
     move_flag move_f = get_flag(move);
-    side move_s;
-
-    piece_t from_p;
-    bitboard *from_bb = get_bitboard_from_square(b, from_sq, &from_p, &move_s);
+    
+    side move_s = side_on(b, from_sq);
+    piece_t from_p = piece_on(b, from_sq);
+    bitboard *from_bb = get_bitboard_from_square(b, from_sq);
 
     piece_t to_p = (move_f & PROMO_FLAG) ? (piece_t)((move_f & SPECIAL_FLAG) + KNIGHT) : from_p;
     bitboard *to_bb = &(b->piece_bbs[to_p][move_s]);
@@ -148,10 +148,10 @@ void unmake_move(board *b, move_t move) {
     int from_sq = get_from(move);
     int to_sq = get_to(move);
     move_flag move_f = get_flag(move);
-    side move_s;
     
-    piece_t from_p;
-    bitboard *from_bb = get_bitboard_from_square(b, to_sq, &from_p, &move_s);
+    side move_s = side_on(b, to_sq);
+    piece_t from_p = piece_on(b, to_sq);
+    bitboard *from_bb = get_bitboard_from_square(b, to_sq);
 
     bitboard *to_bb = from_bb;
 

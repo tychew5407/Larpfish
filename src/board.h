@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include "definitions.h"
 #include "bitboard.h"
 #include "move.h"
@@ -37,7 +38,6 @@
  * - `halfmove_clock` specifies a decimal number of half moves with respect to the 50 move
  *   draw rule.
  * - `fullmove_counter` specifies the number of full turns in the game.
- * - `game_ended` specifies whether the game has ended or not.
  */
 typedef struct {
     bitboard piece_bbs[NUM_PIECES][NUM_SIDES];
@@ -51,8 +51,6 @@ typedef struct {
     unsigned char castling;
     unsigned int halfmove_clock;
     unsigned int fullmove_counter;
-
-    bool game_ended;
 } board;
 
 /* FUNCTION PROTOTYPES */
@@ -72,6 +70,25 @@ void initialize_board(board *b);
  */
 void print_board(board *b);
 
+/* Function: piece_on
+ * -------------------
+ * The `piece_on` function takes a pointer to a board struct and a square and outputs
+ * the piece on that square, or NO_PIECE if no piece was found.
+ */
+static inline piece_t piece_on(board *b, int square) {
+    return b->piece_mailbox[square];
+}
+
+/* Function: side_on
+ * ------------------
+ * The `side_on` function takes a pointer to a board struct and a square and outputs
+ * the side of the piece on that square. Assumes that there is a piece on the given
+ * square.
+ */
+static inline side side_on(board *b, int square) {
+    return b->side_mailbox[square];
+}
+
 /* Function: get_bitboard_from_square
  * -----------------------------------
  * The `get_bitboard_from_square` function takes in a valid `square` value and outputs
@@ -80,7 +97,11 @@ void print_board(board *b);
  *
  * If p and s are valid, they become populated with the bitboard's associated piece/side.
  */
-bitboard *get_bitboard_from_square(board *b, int square, piece_t *p, side *s);
+static inline bitboard *get_bitboard_from_square(board *b, int square) {
+    piece_t bb_piece = b->piece_mailbox[square];
+    if (bb_piece == NO_PIECE) return NULL;
+    return &(b->piece_bbs[bb_piece][b->side_mailbox[square]]);
+}
 
 /* Function: get_bitboard_from_ascii
  * ----------------------------------

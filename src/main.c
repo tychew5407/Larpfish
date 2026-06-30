@@ -10,6 +10,8 @@
 #include "board.h"
 #include "fen.h"
 #include "movegen.h"
+#include "evaluation.h"
+#include "search.h"
 
 #define INIT_POS "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -17,9 +19,6 @@ int main(int argc, char *argv[]) {
     char buf[MAX_FEN_LEN];
     char *fen = buf;
     board board;
-    move_t move_list[MAX_MOVES];
-    size_t move_list_len;
-    bool list = false;
     
     if (argc > 1) {
         strcpy(fen, argv[1]);
@@ -27,21 +26,34 @@ int main(int argc, char *argv[]) {
         strcpy(fen, INIT_POS);
     }
 
-    if (argc > 2 && !strcmp(argv[2], "-l")) {
-        list = true;
-    }
-    
     initialize_board(&board);
     init_attack_tables();
     parse_fen(&board, fen);
-    print_board(&board);
-    generate_moves(move_list, &move_list_len, &board);
 
-    printf("# of nodes: %lu\n\n", move_list_len);
+    while (true) {
+        print_board(&board);
+        
+        move_t best_move = nega_max(&board);
 
-    if (list) {
-        print_move_list(move_list, move_list_len);
+        if (best_move == NO_MOVE) {
+            printf("No moves in this position! Quitting.\n");
+            break;
+        }
+
+        make_move(&board, best_move);
+        print_board(&board);
+        printf("Best move: %d, Eval: %d\n", best_move, -evaluate(&board));
+        
+        move_t user_move;
+        printf("Enter your move (type 0 to quit): ");
+        scanf("%hu", &user_move);
+
+        if (user_move == NO_MOVE) {
+            break;
+        }
+        make_move(&board, user_move);
     }
+    
     
     return 0;
 }

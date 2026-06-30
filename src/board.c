@@ -29,41 +29,17 @@ void print_board(board *b) {
     for (int row = SIDE_LEN - 1; row >= 0; row--) {
         for (int col = 0; col < SIDE_LEN; col++) {
             int square = col + (row * SIDE_LEN);
-            piece_t curr_piece;
-            side curr_side;
-            bitboard *curr = get_bitboard_from_square(b, square, &curr_piece, &curr_side);
+            bitboard *curr = get_bitboard_from_square(b, square);
 
             if (curr) {
-                int offset = ('a' - 'A') * curr_side;
-                printf("%c", PIECE_ASCII[curr_piece] + offset);
+                int offset = ('a' - 'A') * side_on(b, square);
+                printf("%c", PIECE_ASCII[piece_on(b, square)] + offset);
             } else {
                 printf("-");
             }
         }
         printf("\n");
     }
-}
-
-bitboard *get_bitboard_from_square(board *b, int square, piece_t *p, side *s) {
-    // TODO: replace piece/side pointers with mailbox lookups at callers,
-    // then make this function static inline
-    piece_t bb_piece = b->piece_mailbox[square];
-
-    if (bb_piece == NO_PIECE) {
-        return NULL;
-    }
-    
-    side bb_side = b->side_mailbox[square];
-
-    if (p) {
-        *p = bb_piece;
-    }
-
-    if (s) {
-        *s = bb_side;
-    }
-
-    return &(b->piece_bbs[bb_piece][bb_side]);
 }
 
 bitboard *get_bitboard_from_ascii(board *b, char piece_c, piece_t *p, side *s) {

@@ -20,6 +20,8 @@
 #define TO_MASK (63 << FLAG_MASK_LEN)
 #define FLAG_MASK 15
 
+#define NO_MOVE 0 // sentinel flag to represent a non-move.
+
 /* Encoded move have 3 fields:
  *   - The first 6 MSB encode the from square.
  *   - The next 6 bits encode the to square.

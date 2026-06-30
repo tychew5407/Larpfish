@@ -111,10 +111,7 @@ static void encode_pieces(board *b, char **fen) {
         
         for (int col = 0; col < SIDE_LEN; col ++) {
             int square = col + (row * SIDE_LEN);
-            piece_t piece;
-            side side;
-            
-            bitboard *cur_bb = get_bitboard_from_square(b, square, &piece, &side);
+            bitboard *cur_bb = get_bitboard_from_square(b, square);
 
             if (cur_bb) {
                 if (num_empty > 0) {
@@ -123,7 +120,7 @@ static void encode_pieces(board *b, char **fen) {
                     num_empty = 0;
                 }
 
-                char piece_str[2] = {PIECE_ASCII[piece] + ('a' - 'A') * side, '\0'};
+                char piece_str[2] = {PIECE_ASCII[piece_on(b, square)] + ('a' - 'A') * side_on(b, square), '\0'};
                 strcat(*fen, piece_str);
             } else {
                 num_empty ++;
