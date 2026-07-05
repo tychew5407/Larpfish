@@ -118,4 +118,9 @@ static inline move_t encode_move(int from_sq, int to_sq, move_flag flag) {
     return result;
 }
 
+/* Function: is_reversible
+ * ------------------------
+ * The `is_reversible` function
+ */
+
 #endif

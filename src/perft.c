@@ -9,9 +9,11 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
+#include "definitions.h"
 #include "bitboard.h"
 #include "move.h"
 #include "board.h"
+#include "zobrist.h"
 #include "fen.h"
 #include "move_make.h"
 #include "movegen.h"
@@ -38,7 +40,7 @@ int cmp_strs(const void *a, const void *b) {
  * position at a certain depth. Assumes that depth >= 1 and that the board
  * posiiton is valid (does not break the standard rules of the game).
  */
-uint64_t perft(board *b, int depth) {
+uint64_t perft(board *b, zobrist_board *game_history, int depth) {
     move_t move_list[MAX_PLY];
     size_t n_moves;
     uint64_t nodes = 0;
@@ -50,18 +52,13 @@ uint64_t perft(board *b, int depth) {
     generate_moves(move_list, &n_moves, b);
     
     for (size_t i = 0; i < n_moves; i++) {
-        /* board orig = *b; */
-        make_move(b, move_list[i]);
+        make_move(b, game_history, move_list[i]);
 
         if (!is_in_check(b, b->play_side ^ 1)) {
-            nodes += perft(b, depth - 1);
+            nodes += perft(b, game_history, depth - 1);
         }
 
-        unmake_move(b, move_list[i]);
-
-        /* if (!board_cmp(orig, *b)) { */
-        /*     printf("Unmake move failed!\n"); */
-        /* } */
+        unmake_move(b, game_history, move_list[i]);
     }
 
     return nodes;
@@ -71,7 +68,7 @@ uint64_t perft(board *b, int depth) {
  * decremented depth for each move in the current position. Executes
  * when the global bool DIVIDED is true. Assumes depth >= 1.
  */
-void perft_divided(board *b, int depth) {
+void perft_divided(board *b, zobrist_board *game_history, int depth) {
     move_t move_list[MAX_PLY];
     size_t n_moves;
     uint64_t nodes = 0;
@@ -82,16 +79,16 @@ void perft_divided(board *b, int depth) {
     generate_moves(move_list, &n_moves, b);
 
     for (size_t i = 0; i < n_moves; i++) {
-        make_move(b, move_list[i]);
+        make_move(b, game_history, move_list[i]);
 
         if (!is_in_check(b, b->play_side ^ 1)) {
-            uint64_t move_perft = perft(b, depth - 1);
+            uint64_t move_perft = perft(b, game_history, depth - 1);
             nodes += move_perft;
             sprintf(str_list[list_len], "%s%s: %lu\n", sqs[get_from(move_list[i])], sqs[get_to(move_list[i])], move_perft);
             list_len ++;
         }
 
-        unmake_move(b, move_list[i]);
+        unmake_move(b, game_history, move_list[i]);
     }
 
     qsort(str_list, list_len, sizeof(char) * 16, cmp_strs);
@@ -126,6 +123,7 @@ int main(int argc, char *argv[]) {
         while (fgets(fen_str, MAX_FEN_LEN, FEN_file) != NULL) {
             fen_str[strcspn(fen_str, "\n")] = '\0';
             initialize_board(&board);
+            uint64_t game_history[MAX_HALFMOVES + MAX_DEPTH];
 
             char *fen_ptr = fen_str;
             parse_fen(&board, fen_ptr);
@@ -134,10 +132,10 @@ int main(int argc, char *argv[]) {
             print_board(&board);
             printf("\n");
             if (DIVIDED) {
-                perft_divided(&board, MAX_DEPTH);
+                perft_divided(&board, game_history, MAX_DEPTH);
             } else {
                 for (int cur_depth = 0; cur_depth <= MAX_DEPTH; cur_depth ++) {
-                    uint64_t cur_nodes = perft(&board, cur_depth);
+                    uint64_t cur_nodes = perft(&board, game_history, cur_depth);
                     nodes += cur_nodes;
                     printf("Depth = %d: %lu\n", cur_depth, cur_nodes);
                 }

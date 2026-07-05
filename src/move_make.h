@@ -9,6 +9,7 @@
 
 #include "move.h"
 #include "board.h"
+#include "zobrist.h"
 
 /* DEFINITIONS */
 #define ROOK_KING_CASTLE 5 // To-squares for rooks upon king/queen castling (for white).
@@ -24,20 +25,22 @@ typedef struct {
     int ep_square;
     unsigned char castling;
     unsigned int halfmove_clock;
+    zobrist_board zobrist_pos;
 } undo_move_t;
 
 /* Function: make_move
  * --------------------
  * The `make_move` function takes a pointer to a board struct and a move and modifies
- * the board according to the move.
+ * the board and game history according to the move.
  */
-void make_move(board *b, move_t move);
+void make_move(board *b, zobrist_board *game_history, move_t move);
 
 /* Function: unmake_move
  * ----------------------
  * The `unmake_move` function takes a pointer to a board struct and a move that is
- * assumed to had just been made, and modifies the board to undo the move.
+ * assumed to had just been made, and modifies the board and game history to undo the
+ * move.
  */
-void unmake_move(board *b, move_t move);
+void unmake_move(board *b, zobrist_board *game_history, move_t move);
 
 #endif
