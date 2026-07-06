@@ -17,7 +17,6 @@ static size_t move_stack_index = 0;
  */
 static void update_move_counters(board *b, zobrist_board *game_history, piece_t move_p, side move_s, move_flag move_f) {
     move_stack[move_stack_index].halfmove_clock = b->halfmove_clock;
-    move_stack[move_stack_index].zobrist_pos = game_history[b->halfmove_clock];
     
     if (move_p == PAWN || move_f & CAPTURE_FLAG) {
         b->halfmove_clock = 0;
@@ -30,6 +29,7 @@ static void update_move_counters(board *b, zobrist_board *game_history, piece_t 
     }
 
     // Initialize new game history elem
+    move_stack[move_stack_index].zobrist_pos = game_history[b->halfmove_clock];
     game_history[b->halfmove_clock] = game_history[move_stack[move_stack_index].halfmove_clock];
 }
 
