@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "board.h"
+#include "board_ascii.h"
 #include "fen.h"
 
 /* FUNCTION PROTOTYPES FOR HELPER FUNCTIONS */

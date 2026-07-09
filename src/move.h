@@ -6,11 +6,12 @@
 #ifndef MOVE_H
 #define MOVE_H
 
+#include <string.h>
 #include <stdint.h>
 #include "definitions.h"
+#include "board_ascii.h"
 
 /* DEFINITIONS */
-
 #define PROMO_FLAG (1 << 3)
 #define CAPTURE_FLAG (1 << 2)
 #define SPECIAL_FLAG 3
@@ -117,10 +118,5 @@ static inline move_t encode_move(int from_sq, int to_sq, move_flag flag) {
 
     return result;
 }
-
-/* Function: is_reversible
- * ------------------------
- * The `is_reversible` function
- */
 
 #endif

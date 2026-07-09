@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include "search.h"
 
+atomic_bool search_running = false;
+
 /* The `is_move_50` function returns whether or not the given position has reached
  * the 50-move rule, in which case the search should cut short and return a stalemate
  * evaluation (0).
@@ -39,6 +41,10 @@ static inline bool is_repeat(board *b, zobrist_board *game_history) {
 }
 
 int nega_max(board *b, zobrist_board *game_history, move_t *best_move, int depth) {
+    if (!atomic_load(&search_running)) {
+        return ABORTED_EVAL;
+    }
+    
     if (is_repeat(b, game_history)) {
         return 0;
     }
@@ -47,7 +53,7 @@ int nega_max(board *b, zobrist_board *game_history, move_t *best_move, int depth
         return (is_50_move_rule(b)) ? 0 : evaluate(b);
     }
 
-    move_t move_list[MAX_PLY];
+    move_t move_list[MAX_MOVES];
     size_t n_moves;
     int max = INT_MIN;
 
@@ -58,6 +64,11 @@ int nega_max(board *b, zobrist_board *game_history, move_t *best_move, int depth
 
         if (!is_in_check(b, b->play_side ^ 1)) {
             int score = -nega_max(b, game_history, NULL, depth - 1);
+
+            if (score == ABORTED_EVAL || score == -ABORTED_EVAL) {
+                unmake_move(b, game_history, move_list[i]);
+                break;
+            }
             
             if (score > max) {
                 max = score;

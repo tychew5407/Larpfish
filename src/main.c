@@ -1,13 +1,16 @@
 /* File: main.c
  * -------------
  * This is the main global C file that will contain the main function to be executed.
+ * Handles all UCI-support.
  */
 
 #include <string.h>
 #include <stdio.h>
+#include <pthread.h>
 #include "definitions.h"
 #include "move.h"
 #include "board.h"
+#include "board_ascii.h"
 #include "fen.h"
 #include "zobrist.h"
 #include "move_make.h"
@@ -15,58 +18,281 @@
 #include "evaluation.h"
 #include "search.h"
 
-#define INIT_POS "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+/* ENGINE DEFINITIONS */
+#define ENGINE_NAME "Larpfish 1.0"
+#define ENGINE_AUTHOR "Tyler Chew"
+#define START_POS "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+#define MAX_DEPTH 6
 
-const int SEARCH_DEPTH = 4;
+/* UCI PROTOCOL DEFINITIONS */
+#define UCI_BUF_SIZE (128 * 1024)
+#define NUM_SUPPORTED_CMDS 7
+#define NULL_MOVE "0000"
 
-int main(int argc, char *argv[]) {
-    char buf[MAX_FEN_LEN];
-    char *fen = buf;
-    board board;
-    zobrist_board game_history[MAX_HALFMOVES + SEARCH_DEPTH];
-    
-    if (argc > 1) {
-        strcpy(fen, argv[1]);
-    } else {
-        strcpy(fen, INIT_POS);
-    }
+/* The `cmd` struct represents a UCI command from the GUI, and has two fields:
+ *   - `cmd_text`: the input text corresponding to the command
+ *   - `cmd_func`: the function to be called corresponding to the command
+ */
+typedef struct {
+    char *cmd_text;
+    void (*cmd_func)(char *);
+} cmd;
 
-    initialize_board(&board);
+/* ENGINE FUNCTION PROTOTYPES */
+static void initialize_game();
+
+/* UCI FUNCTION PROTOTYPES */
+static void handle_uci(char *args);
+static void handle_isready(char *args);
+static void handle_ucinewgame(char *args);
+static void handle_position(char *args);
+static void handle_go(char *args);
+static void handle_stop(char *args);
+static void handle_quit(char *args);
+static void encode_UCI(move_t move, char *UCI_str);
+static move_t decode_UCI(const board *b, const char *UCI_str);
+static void *search_helper(void *arg);
+
+/* ENGINE GLOBAL VARIABLES:
+ *   - `game_board`: the board representation of the current game.
+ *   - `game_history`: the game history from the last irreversible move.
+ */
+static board game_board;
+static zobrist_board game_history[MAX_HALFMOVES + MAX_DEPTH];
+
+/* UCI PROTOCOL GLOBAL VARIABLES:
+ *   - `running` specifies whether the engine should continue running or not
+ *     (i.e. process UCI commands from the GUI)
+ *   - `cmd_input` is the string buffer holding the UCI commands from the GUI.
+ *   - `commands` is a list of engine-supported UCI commands that uses `cmd`
+ *     structs to pair text inputs to functions.
+ */
+static bool running = true;
+static char cmd_input[UCI_BUF_SIZE];
+
+/* Commands NOT supported (consider TODO):
+ *   - debug [on | off]
+ *   - setoption name  [value ]
+ */
+static cmd commands[NUM_SUPPORTED_CMDS] = {
+    {"uci", handle_uci},
+    {"isready", handle_isready},
+    {"ucinewgame", handle_ucinewgame},
+    {"position", handle_position},
+    {"go", handle_go},
+    {"stop", handle_stop},
+    {"quit", handle_quit}
+};
+
+static pthread_t search_thread;
+
+int main() {
     init_attack_tables();
-    parse_fen(&board, fen);
-    game_history[0] = generate_zobrist_board(&board);
-
-    bool user = false;
-    if (argc > 2 && !strcmp(argv[2], "-u")) user = true;
-
-    while (true) {
-        print_board(&board);
-        printf("\n");
-        
-        move_t best_move = NO_MOVE;
-        int best_eval = nega_max(&board, game_history, &best_move, SEARCH_DEPTH);
-
-        if (best_move == NO_MOVE) {
-            printf("No moves in this position! Quitting.\n");
-            break;
+    
+    while (running && fgets(cmd_input, UCI_BUF_SIZE, stdin)) {
+        /* Truncate the newline character, or raise an error if no newline
+         * is found (meaning that the command exceeded the buffer size).
+         */
+        if (cmd_input[strlen(cmd_input)] != '\0') {
+            return 1;
         }
 
-        make_move(&board, game_history, best_move);
-        print_board(&board);
-        printf("Best move: %d, Eval: %d\n\n", best_move, best_eval);
+        cmd_input[strlen(cmd_input) - 1] = '\0';
 
-        if (user) {
-            move_t user_move;
-            printf("Enter your move (type 0 to quit): ");
-            scanf("%hu", &user_move);
-
-            if (user_move == NO_MOVE) {
+        // Parse command + flags
+        char *cur_args = strchr(cmd_input, ' ');
+        if (cur_args) cur_args++;
+        
+        char *command = strtok(cmd_input, " ");
+        
+        for (int i = 0; i < NUM_SUPPORTED_CMDS; i++) {
+            if (!strcmp(command, commands[i].cmd_text)) {
+                commands[i].cmd_func(cur_args);
                 break;
             }
-            make_move(&board, game_history, user_move);
         }
     }
     
-    
     return 0;
+}
+
+static void initialize_game() {
+    initialize_board(&game_board);
+
+    for (size_t i = 0; i < sizeof(game_history) / sizeof(zobrist_board); i++) {
+        game_history[i] = 0;
+    }
+
+    empty_move_stack();
+}
+
+static void handle_uci(char *args) {
+    // Identify engine
+    printf("id name %s\n", ENGINE_NAME);
+    printf("id author %s\n", ENGINE_AUTHOR);
+
+    // Confirm
+    printf("uciok\n");
+
+    fflush(stdout);
+}
+
+static void handle_isready(char *args) {
+    printf("readyok\n");
+    fflush(stdout);
+}
+
+static void handle_ucinewgame(char *args) {
+    initialize_game();
+}
+
+static void handle_position(char *args) {
+    if (!args) {
+        return;
+    }
+
+    initialize_game();
+
+    /* Process arguments, assumes a valid command and
+     * initialized board.
+     */
+    char *moves_ptr = strstr(args, " moves");
+
+    if (moves_ptr) {
+        *moves_ptr = '\0';
+        moves_ptr ++;
+    }
+    
+    char fen_buf[MAX_FEN_LEN];
+    char *fen_ptr = fen_buf;
+    
+    if (!strncmp(args, "startpos", 8)) {
+        strcpy(fen_buf, START_POS);
+    } else {
+        strcpy(fen_buf, args + strlen("fen "));
+    }
+
+    parse_fen(&game_board, fen_ptr);
+
+    moves_ptr = strtok(moves_ptr, " ");
+    moves_ptr = strtok(NULL, " ");
+
+    while (moves_ptr) {
+        move_t move = decode_UCI(&game_board, moves_ptr);
+        make_move(&game_board, game_history, move);
+        empty_move_stack();
+        moves_ptr = strtok(NULL, " ");
+    }
+}
+
+static void handle_go(char *args) {
+    handle_stop(args);
+
+    atomic_store(&search_running, true);
+    pthread_create(&search_thread, NULL, search_helper, NULL);
+}
+
+static void handle_stop(char *args) {
+    if (!atomic_load(&search_running)) {
+        return;
+    }
+    
+    atomic_store(&search_running, false);
+    pthread_join(search_thread, NULL);
+}
+
+static void handle_quit(char *args) {
+    running = false;
+}
+
+/* Function: encode_UCI
+ * ---------------------
+ * The `encode_UCI` function takes a move_t `move` and string `UCI_str`,
+ * and populates `UCI_str` with the UCI-compatible representation of `move`.
+ */
+static void encode_UCI(move_t move, char *UCI_str) {
+    move_flag flag = get_flag(move);
+    char promo_str[2] = "";
+    
+    if (flag & PROMO_FLAG) {
+        promo_str[0] = PIECE_ASCII[(flag & SPECIAL_FLAG) + KNIGHT] + ('a' - 'A');
+        promo_str[1] = '\0';
+    }
+    
+    sprintf(UCI_str, "%s%s%s",
+            SQUARE_ASCII[get_from(move)],
+            SQUARE_ASCII[get_to(move)],
+            promo_str);
+}
+
+/* Function: decode_UCI
+ * --------------------
+ * The `decode_UCI` function takes a UCI-compatible string representation of a
+ * move and returns its corresponding move_t representation. Assumed to be valid.
+ */
+static move_t decode_UCI(const board *b, const char *UCI_str) {
+    int from_sq = get_square_from_ascii(UCI_str);
+    int to_sq = get_square_from_ascii(UCI_str + 2);
+    move_flag flag = QUIET;
+
+    // PROMOTIONS
+    char promo_char = UCI_str[4];
+    if (promo_char) {
+        promo_char += 'A' - 'a';
+        move_flag special_flag;
+        
+        for (int i = 0; i < NUM_PROMOS; i++) {
+            if (promo_char == PIECE_ASCII[i + KNIGHT]) {
+                special_flag = i;
+                break;
+            }
+        }
+
+        flag |= (PROMO_FLAG | special_flag);
+    }
+
+    piece_t piece = piece_on(b, from_sq);
+
+    // CAPTURES
+    if (piece_on(b, to_sq) != NO_PIECE) {
+        flag |= CAPTURE_FLAG;
+    } else if (piece == PAWN &&
+               b->ep_square != NO_EN_PASSANT &&
+               to_sq == b->ep_square) {
+        flag = EP_CAPTURE;
+    }
+
+    // CASTLING
+    if (piece == KING) {
+        if (!strcmp(UCI_str, "e1g1") || !strcmp(UCI_str, "e8g8")) {
+            flag = KING_CASTLE;
+        } else if (!strcmp(UCI_str, "e1c1") || !strcmp(UCI_str, "e8c8")) {
+            flag = QUEEN_CASTLE;
+        }
+    }
+
+    // DOUBLE PAWN PUSH
+    if (piece == PAWN &&
+        (1ULL << from_sq) & (RANK_2 | RANK_7) &&
+        (1ULL << to_sq) & (RANK_4 | RANK_5)) {
+        flag = DOUBLE_PAWN_PUSH;
+    }
+    
+    return encode_move(from_sq, to_sq, flag);
+}
+
+static void *search_helper(void *arg) {
+    move_t best_move = NO_MOVE;
+    nega_max(&game_board, game_history, &best_move, MAX_DEPTH);
+    
+    char best_move_buf[6] = NULL_MOVE;
+
+    if (best_move != NO_MOVE) {
+        encode_UCI(best_move, best_move_buf);
+    }
+    
+    printf("bestmove %s\n", best_move_buf);
+    fflush(stdout);
+    atomic_store(&search_running, false);
+    return NULL;
 }

@@ -43,4 +43,11 @@ void make_move(board *b, zobrist_board *game_history, move_t move);
  */
 void unmake_move(board *b, zobrist_board *game_history, move_t move);
 
+/* Function: empty_move_stack
+ * ---------------------------
+ * The `empty_move_stack` function empties the internal move stack, used for unmaking moves.
+ * This is usually done for initializing new games/positions.
+ */
+void empty_move_stack();
+
 #endif

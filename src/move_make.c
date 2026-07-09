@@ -244,3 +244,7 @@ void unmake_move(board *b, zobrist_board *game_history, move_t move) {
         b->piece_mailbox[to_sq] = NO_PIECE;
     }
 }
+
+void empty_move_stack() {
+    move_stack_index = 0;
+}

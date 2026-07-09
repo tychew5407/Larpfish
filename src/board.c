@@ -9,10 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "board.h"
-
-/* Used for printing or parsing FEN. */
-const char PIECE_ASCII[NUM_PIECES] = {'P', 'N', 'B', 'R', 'Q', 'K'};
-const char CASTLE_ASCII[NUM_CASTLES] = {'q', 'k', 'Q', 'K'};
+#include "board_ascii.h"
 
 void initialize_board(board *b) {
     memset(b->piece_bbs, 0, sizeof(b->piece_bbs));

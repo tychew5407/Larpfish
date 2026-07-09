@@ -45,7 +45,7 @@
 /* SEARCH CONSTANTS */
 #define MAX_MOVES 218
 #define MAX_HALFMOVES 100
-#define MAX_PLY 128
+#define MAX_PLY 
 
 /* PIECE ENUMS */
 typedef enum {

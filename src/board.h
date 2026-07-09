@@ -75,7 +75,7 @@ void print_board(board *b);
  * The `piece_on` function takes a pointer to a board struct and a square and outputs
  * the piece on that square, or NO_PIECE if no piece was found.
  */
-static inline piece_t piece_on(board *b, int square) {
+static inline piece_t piece_on(const board *b, const int square) {
     return b->piece_mailbox[square];
 }
 
@@ -85,7 +85,7 @@ static inline piece_t piece_on(board *b, int square) {
  * the side of the piece on that square. Assumes that there is a piece on the given
  * square.
  */
-static inline side side_on(board *b, int square) {
+static inline side side_on(const board *b, const int square) {
     return b->side_mailbox[square];
 }
 
