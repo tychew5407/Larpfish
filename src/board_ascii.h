@@ -11,6 +11,7 @@
 
 static const char PIECE_ASCII[NUM_PIECES] = {'P', 'N', 'B', 'R', 'Q', 'K'};
 static const char CASTLE_ASCII[NUM_CASTLES] = {'q', 'k', 'Q', 'K'};
+static const char SIDE_ASCII[NUM_SIDES] = {'w', 'b'};
 static const char SQUARE_ASCII[NUM_SQUARES][3] = {
     "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1",
     "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",

@@ -6,7 +6,9 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <pthread.h>
+#include <time.h>
 #include "definitions.h"
 #include "move.h"
 #include "board.h"
@@ -22,7 +24,9 @@
 #define ENGINE_NAME "Larpfish 1.0"
 #define ENGINE_AUTHOR "Tyler Chew"
 #define START_POS "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-#define MAX_DEPTH 6
+#define MAX_DEPTH 8
+#define INFINITE_SEARCH_TIME 0
+#define TIMER_INTERVAL 10
 
 /* UCI PROTOCOL DEFINITIONS */
 #define UCI_BUF_SIZE (128 * 1024)
@@ -52,6 +56,7 @@ static void handle_quit(char *args);
 static void encode_UCI(move_t move, char *UCI_str);
 static move_t decode_UCI(const board *b, const char *UCI_str);
 static void *search_helper(void *arg);
+static void *search_timer(void *arg);
 
 /* ENGINE GLOBAL VARIABLES:
  *   - `game_board`: the board representation of the current game.
@@ -85,6 +90,8 @@ static cmd commands[NUM_SUPPORTED_CMDS] = {
 };
 
 static pthread_t search_thread;
+static pthread_t timer_thread;
+static atomic_bool timer_running = false;
 
 int main() {
     init_attack_tables();
@@ -186,10 +193,40 @@ static void handle_position(char *args) {
 }
 
 static void handle_go(char *args) {
-    handle_stop(args);
+    handle_stop(args); // To clean up any running threads
 
     atomic_store(&search_running, true);
     pthread_create(&search_thread, NULL, search_helper, NULL);
+
+    // Parse time subcommands
+    uint64_t time_ms = INFINITE_SEARCH_TIME;
+    char time_str[6];
+    char inc_str[5];
+
+    sprintf(time_str, "%ctime", SIDE_ASCII[game_board.play_side]);
+    sprintf(inc_str, "%cinc", SIDE_ASCII[game_board.play_side]);
+    
+    args = strtok(args, " ");
+    while (args) {
+        if (!strcmp(args, "movetime")) {
+            args = strtok(NULL, " ");
+            time_ms = atoi(args);
+            break;
+        } else if (!strcmp(args, time_str)) {
+            args = strtok(NULL, " ");
+            time_ms += atoi(args) / 20;
+        } else if (!strcmp(args, inc_str)) {
+            args = strtok(NULL, " ");
+            time_ms += atoi(args) / 2;
+        }
+        
+        args = strtok(NULL, " ");
+    }
+
+    if (time_ms != INFINITE_SEARCH_TIME) {
+        pthread_create(&timer_thread, NULL, search_timer, &time_ms);
+    }
+    
 }
 
 static void handle_stop(char *args) {
@@ -199,6 +236,11 @@ static void handle_stop(char *args) {
     
     atomic_store(&search_running, false);
     pthread_join(search_thread, NULL);
+
+    if (atomic_load(&timer_running)) {
+        atomic_store(&timer_running, false);
+        pthread_join(timer_thread, NULL);
+    }
 }
 
 static void handle_quit(char *args) {
@@ -281,9 +323,20 @@ static move_t decode_UCI(const board *b, const char *UCI_str) {
     return encode_move(from_sq, to_sq, flag);
 }
 
+/* The `search_helper` function is a thread function responsible for
+ * running the search.
+ *
+ * It uses an iterative deepening algorithm until quitting the search
+ * gets called.
+ */
 static void *search_helper(void *arg) {
     move_t best_move = NO_MOVE;
-    nega_max(&game_board, game_history, &best_move, MAX_DEPTH);
+    int cur_depth = 1;
+
+    while (atomic_load(&search_running)) {
+        search(&game_board, game_history, &best_move, cur_depth);
+        cur_depth ++;
+    }
     
     char best_move_buf[6] = NULL_MOVE;
 
@@ -293,6 +346,29 @@ static void *search_helper(void *arg) {
     
     printf("bestmove %s\n", best_move_buf);
     fflush(stdout);
+    return NULL;
+}
+
+/* The `search_timer` function is a thread function responsible for
+ * time management, calling off the search when a certain amount of
+ * time has passed.
+ *
+ * Its argument is a pointer to the number of ms to wait.
+ */
+static void *search_timer(void *arg) {
+    atomic_store(&timer_running, true);
+
+    uint64_t total_ms = *((uint64_t *)arg);
+    uint64_t elapsed_ms = 0;
+
+    while (atomic_load(&timer_running) && elapsed_ms < total_ms) {
+        struct timespec interval_ts = {0, TIMER_INTERVAL * 1000000};
+        int result = nanosleep(&interval_ts, NULL);
+        if (result < 0) break;
+        
+        elapsed_ms += TIMER_INTERVAL;
+    }
+
     atomic_store(&search_running, false);
     return NULL;
 }

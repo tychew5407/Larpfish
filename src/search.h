@@ -24,13 +24,13 @@
  */
 extern atomic_bool search_running;
 
-/* The `nega_max` function takes a board pointer, move pointer, and specified depth,
+/* The `search` function takes a board pointer, move pointer, and specified depth,
  * and outputs the score of the best move according to the evaluation function. It
  * also sets `best_move` to the best move.
  *
  * `best_move` should ideally be initialized to NO_MOVE, so that there is indication
  * of whether it was modified (aka if search yielded results) or not.
  */
-int nega_max(board *b, zobrist_board *game_history, move_t *best_move, int depth);
+int search(board *b, zobrist_board *game_history, move_t *best_move, int depth);
 
 #endif

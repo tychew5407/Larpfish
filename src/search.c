@@ -40,7 +40,7 @@ static inline bool is_repeat(board *b, zobrist_board *game_history) {
     return false;
 }
 
-int nega_max(board *b, zobrist_board *game_history, move_t *best_move, int depth) {
+static int alpha_beta(board *b, zobrist_board *game_history, move_t *best_move, int alpha, int beta, int depth) {
     if (!atomic_load(&search_running)) {
         return ABORTED_EVAL;
     }
@@ -55,7 +55,7 @@ int nega_max(board *b, zobrist_board *game_history, move_t *best_move, int depth
 
     move_t move_list[MAX_MOVES];
     size_t n_moves;
-    int max = INT_MIN;
+    int best_score = INT_MIN;
 
     generate_moves(move_list, &n_moves, b);
 
@@ -63,23 +63,33 @@ int nega_max(board *b, zobrist_board *game_history, move_t *best_move, int depth
         make_move(b, game_history, move_list[i]);
 
         if (!is_in_check(b, b->play_side ^ 1)) {
-            int score = -nega_max(b, game_history, NULL, depth - 1);
+            int score = -alpha_beta(b, game_history, NULL, -beta, -alpha, depth - 1);
 
             if (score == ABORTED_EVAL || score == -ABORTED_EVAL) {
                 unmake_move(b, game_history, move_list[i]);
                 break;
             }
             
-            if (score > max) {
-                max = score;
-                if (best_move) *best_move = move_list[i];
+            if (score > best_score) {
+                best_score = score;
+                if (best_move) {
+                    *best_move = move_list[i];
+                }
+                if (score > alpha) {
+                    alpha = score;
+                }
+            }
+
+            if (score >= beta) {
+                unmake_move(b, game_history, move_list[i]);
+                return best_score;
             }
         }
 
         unmake_move(b, game_history, move_list[i]);
     }
 
-    if (max == INT_MIN) {
+    if (best_score == INT_MIN) {
         return no_moves_eval(b);
     }
        
@@ -88,5 +98,9 @@ int nega_max(board *b, zobrist_board *game_history, move_t *best_move, int depth
         return 0;
     }
 
-    return max;
+    return best_score;
+}
+
+int search(board *b, zobrist_board *game_history, move_t *best_move, int depth) {
+    return alpha_beta(b, game_history, best_move, -INT_MAX, INT_MAX, depth);
 }

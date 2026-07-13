@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
         printf("\n");
 
         move_t best_move = NO_MOVE;
-        int best_eval = nega_max(&board, game_history, &best_move, MAX_DEPTH);
+        int best_eval = search(&board, game_history, &best_move, MAX_DEPTH);
 
         if (best_move != NO_MOVE) {
             printf("Best move: %d to %d. Eval: %d\n", get_from(best_move), get_to(best_move), best_eval);
