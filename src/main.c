@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <time.h>
+#include <inttypes.h>
 #include "definitions.h"
 #include "move.h"
 #include "board.h"
@@ -24,7 +25,7 @@
 #define ENGINE_NAME "Larpfish 1.0"
 #define ENGINE_AUTHOR "Tyler Chew"
 #define START_POS "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-#define MAX_DEPTH 8
+#define MAX_DEPTH 100
 #define INFINITE_SEARCH_TIME 0
 #define TIMER_INTERVAL 10
 
@@ -92,6 +93,7 @@ static cmd commands[NUM_SUPPORTED_CMDS] = {
 static pthread_t search_thread;
 static pthread_t timer_thread;
 static atomic_bool timer_running = false;
+static uint64_t timer_duration = INFINITE_SEARCH_TIME;
 
 int main() {
     init_attack_tables();
@@ -100,7 +102,7 @@ int main() {
         /* Truncate the newline character, or raise an error if no newline
          * is found (meaning that the command exceeded the buffer size).
          */
-        if (cmd_input[strlen(cmd_input)] != '\0') {
+        if (cmd_input[strlen(cmd_input) - 1] != '\n') {
             return 1;
         }
 
@@ -182,8 +184,11 @@ static void handle_position(char *args) {
     parse_fen(&game_board, fen_ptr);
 
     moves_ptr = strtok(moves_ptr, " ");
-    moves_ptr = strtok(NULL, " ");
 
+    if (moves_ptr) {
+        moves_ptr = strtok(NULL, " ");
+    }
+    
     while (moves_ptr) {
         move_t move = decode_UCI(&game_board, moves_ptr);
         make_move(&game_board, game_history, move);
@@ -199,7 +204,7 @@ static void handle_go(char *args) {
     pthread_create(&search_thread, NULL, search_helper, NULL);
 
     // Parse time subcommands
-    uint64_t time_ms = INFINITE_SEARCH_TIME;
+    timer_duration = INFINITE_SEARCH_TIME;
     char time_str[6];
     char inc_str[5];
 
@@ -210,32 +215,30 @@ static void handle_go(char *args) {
     while (args) {
         if (!strcmp(args, "movetime")) {
             args = strtok(NULL, " ");
-            time_ms = atoi(args);
+            timer_duration = atoi(args);
             break;
         } else if (!strcmp(args, time_str)) {
             args = strtok(NULL, " ");
-            time_ms += atoi(args) / 20;
+            timer_duration += atoi(args) / 20;
         } else if (!strcmp(args, inc_str)) {
             args = strtok(NULL, " ");
-            time_ms += atoi(args) / 2;
+            timer_duration += atoi(args) / 2;
         }
         
         args = strtok(NULL, " ");
     }
 
-    if (time_ms != INFINITE_SEARCH_TIME) {
-        pthread_create(&timer_thread, NULL, search_timer, &time_ms);
+    if (timer_duration != INFINITE_SEARCH_TIME) {
+        pthread_create(&timer_thread, NULL, search_timer, NULL);
     }
     
 }
 
 static void handle_stop(char *args) {
-    if (!atomic_load(&search_running)) {
-        return;
+    if (atomic_load(&search_running)) {
+        atomic_store(&search_running, false);
+        pthread_join(search_thread, NULL);
     }
-    
-    atomic_store(&search_running, false);
-    pthread_join(search_thread, NULL);
 
     if (atomic_load(&timer_running)) {
         atomic_store(&timer_running, false);
@@ -244,6 +247,7 @@ static void handle_stop(char *args) {
 }
 
 static void handle_quit(char *args) {
+    handle_stop(args);
     running = false;
 }
 
@@ -331,10 +335,18 @@ static move_t decode_UCI(const board *b, const char *UCI_str) {
  */
 static void *search_helper(void *arg) {
     move_t best_move = NO_MOVE;
+    move_t cur_move = NO_MOVE;
     int cur_depth = 1;
 
-    while (atomic_load(&search_running)) {
-        search(&game_board, game_history, &best_move, cur_depth);
+    while (cur_depth <= MAX_DEPTH) {
+        search(&game_board, game_history, &cur_move, cur_depth);
+
+        if (atomic_load(&search_running)) {
+            best_move = cur_move;
+        } else {
+            break;
+        }
+        
         cur_depth ++;
     }
     
@@ -358,10 +370,9 @@ static void *search_helper(void *arg) {
 static void *search_timer(void *arg) {
     atomic_store(&timer_running, true);
 
-    uint64_t total_ms = *((uint64_t *)arg);
     uint64_t elapsed_ms = 0;
 
-    while (atomic_load(&timer_running) && elapsed_ms < total_ms) {
+    while (atomic_load(&timer_running) && elapsed_ms < timer_duration) {
         struct timespec interval_ts = {0, TIMER_INTERVAL * 1000000};
         int result = nanosleep(&interval_ts, NULL);
         if (result < 0) break;
