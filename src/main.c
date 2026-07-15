@@ -334,12 +334,12 @@ static move_t decode_UCI(const board *b, const char *UCI_str) {
  * gets called.
  */
 static void *search_helper(void *arg) {
-    move_t best_move = NO_MOVE;
-    move_t cur_move = NO_MOVE;
+    move_t best_move = find_first_legal(&game_board, game_history);
+    move_t cur_move = best_move;
     int cur_depth = 1;
 
     while (cur_depth <= MAX_DEPTH) {
-        search(&game_board, game_history, &cur_move, cur_depth);
+        search(&game_board, game_history, &cur_move, NULL, cur_depth);
 
         if (atomic_load(&search_running)) {
             best_move = cur_move;

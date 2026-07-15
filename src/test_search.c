@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include "definitions.h"
 #include "bitboard.h"
 #include "move.h"
@@ -18,7 +19,7 @@
 #include "movegen.h"
 #include "search.h"
 
-int MAX_DEPTH = 4;
+static int MAX_DEPTH = 4;
 
 int main(int argc, char *argv[]) {
     init_attack_tables();
@@ -59,8 +60,13 @@ int main(int argc, char *argv[]) {
         print_board(&board);
         printf("\n");
 
+        atomic_store(&search_running, true);
+        
         move_t best_move = NO_MOVE;
-        int best_eval = search(&board, game_history, &best_move, MAX_DEPTH);
+        uint64_t nodes_searched = 0;
+        int best_eval = search(&board, game_history, &best_move, &nodes_searched, MAX_DEPTH);
+        
+        atomic_store(&search_running, false);
 
         if (best_move != NO_MOVE) {
             printf("Best move: %d to %d. Eval: %d\n", get_from(best_move), get_to(best_move), best_eval);
@@ -68,6 +74,7 @@ int main(int argc, char *argv[]) {
             printf("No moves in this position. Eval: %d\n", best_eval);
         }
 
+        printf("Nodes searched: %" PRIu64 "\n", nodes_searched);
         printf("\n");
         
         positions ++;

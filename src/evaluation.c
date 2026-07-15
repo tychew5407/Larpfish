@@ -5,8 +5,8 @@
 
 #include "evaluation.h"
 
-// List of cnstants for material counting
-const int MATERIAL[5] = {
+// List of constants for material counting
+const int MATERIAL[NUM_PIECES - 1] = {
     PAWN_WEIGHT,
     KNIGHT_WEIGHT,
     BISHOP_WEIGHT,
@@ -14,7 +14,7 @@ const int MATERIAL[5] = {
     QUEEN_WEIGHT
 };
 
-const int SIDE_WEIGHT[2] = {
+const int SIDE_WEIGHT[NUM_SIDES] = {
     1, // WHITE
     -1 // BLACK
 };
@@ -26,7 +26,7 @@ int evaluate(board *b) {
     for (int i = 0; i < NUM_PIECES - 1; i++) {
         int w_count = __builtin_popcountll(b->piece_bbs[i][WHITE]);
         int b_count = __builtin_popcountll(b->piece_bbs[i][BLACK]);
-        result += MATERIAL[i] * (w_count - b_count) * SIDE_WEIGHT[s];
+        result += get_piece_val(i) * (w_count - b_count) * SIDE_WEIGHT[s];
     }
 
     return result;
