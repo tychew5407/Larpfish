@@ -3,6 +3,7 @@
  * For more information, see "evaluation.h".
  */
 
+#include <inttypes.h>
 #include "evaluation.h"
 
 // List of constants for material counting
@@ -19,8 +20,8 @@ const int SIDE_WEIGHT[NUM_SIDES] = {
     -1 // BLACK
 };
 
-int evaluate(board *b) {
-    int result = 0;
+int16_t evaluate(board *b) {
+    int16_t result = 0;
     side s = b->play_side;
 
     for (int i = 0; i < NUM_PIECES - 1; i++) {

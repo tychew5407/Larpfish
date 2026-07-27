@@ -36,7 +36,7 @@ extern atomic_bool search_running;
  * The function also supports `n_searched` which, when not NULL, is populated with the
  * number of nodes considered by the search function.
  */
-int search(board *b, zobrist_board *game_history, move_t *best_move, uint64_t *n_searched, int depth);
+int search(board *b, zobrist_board *game_history, move_t *best_move, uint64_t *n_searched, uint8_t depth);
 
 /* Function: find_first_legal
  * ---------------------------

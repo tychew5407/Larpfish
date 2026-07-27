@@ -16,6 +16,7 @@
 #include "board_ascii.h"
 #include "fen.h"
 #include "zobrist.h"
+#include "transposition_table.h"
 #include "move_make.h"
 #include "movegen.h"
 #include "evaluation.h"
@@ -25,13 +26,17 @@
 #define ENGINE_NAME "Larpfish 1.0"
 #define ENGINE_AUTHOR "Tyler Chew"
 #define START_POS "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+#define DEFAULT_TT_SIZE 128
+#define MIN_HASH_SIZE 1
+#define MAX_HASH_SIZE 512
 #define MAX_DEPTH 100
 #define INFINITE_SEARCH_TIME 0
 #define TIMER_INTERVAL 10
 
 /* UCI PROTOCOL DEFINITIONS */
 #define UCI_BUF_SIZE (128 * 1024)
-#define NUM_SUPPORTED_CMDS 7
+#define NUM_SUPPORTED_CMDS 8
+#define NUM_SUPPORTED_OPTION_CMDS 1
 #define NULL_MOVE "0000"
 
 /* The `cmd` struct represents a UCI command from the GUI, and has two fields:
@@ -49,11 +54,13 @@ static void initialize_game();
 /* UCI FUNCTION PROTOTYPES */
 static void handle_uci(char *args);
 static void handle_isready(char *args);
+static void handle_setoption(char *args);
 static void handle_ucinewgame(char *args);
 static void handle_position(char *args);
 static void handle_go(char *args);
 static void handle_stop(char *args);
 static void handle_quit(char *args);
+static void set_hash_size(char *val);
 static void encode_UCI(move_t move, char *UCI_str);
 static move_t decode_UCI(const board *b, const char *UCI_str);
 static void *search_helper(void *arg);
@@ -62,9 +69,12 @@ static void *search_timer(void *arg);
 /* ENGINE GLOBAL VARIABLES:
  *   - `game_board`: the board representation of the current game.
  *   - `game_history`: the game history from the last irreversible move.
+ *   - `TT_size_MB`: the size of the engine's transposition hash table, in megabytes.
  */
 static board game_board;
 static zobrist_board game_history[MAX_HALFMOVES + MAX_DEPTH];
+
+static size_t TT_size_MB = DEFAULT_TT_SIZE;
 
 /* UCI PROTOCOL GLOBAL VARIABLES:
  *   - `running` specifies whether the engine should continue running or not
@@ -72,22 +82,25 @@ static zobrist_board game_history[MAX_HALFMOVES + MAX_DEPTH];
  *   - `cmd_input` is the string buffer holding the UCI commands from the GUI.
  *   - `commands` is a list of engine-supported UCI commands that uses `cmd`
  *     structs to pair text inputs to functions.
+ *   - `option_subcmds` is a list of engine-supported UCI subcommands from the
+ *     `setoption` command.
  */
 static bool running = true;
 static char cmd_input[UCI_BUF_SIZE];
 
-/* Commands NOT supported (consider TODO):
- *   - debug [on | off]
- *   - setoption name  [value ]
- */
 static cmd commands[NUM_SUPPORTED_CMDS] = {
     {"uci", handle_uci},
     {"isready", handle_isready},
+    {"setoption", handle_setoption},
     {"ucinewgame", handle_ucinewgame},
     {"position", handle_position},
     {"go", handle_go},
     {"stop", handle_stop},
     {"quit", handle_quit}
+};
+
+static cmd option_subcmds[NUM_SUPPORTED_OPTION_CMDS] = {
+    {"Hash", set_hash_size}
 };
 
 static pthread_t search_thread;
@@ -133,6 +146,12 @@ static void initialize_game() {
     }
 
     empty_move_stack();
+
+    if (tt_exists()) {
+        free_tt();
+    }
+
+    init_tt(TT_size_MB);
 }
 
 static void handle_uci(char *args) {
@@ -140,6 +159,9 @@ static void handle_uci(char *args) {
     printf("id name %s\n", ENGINE_NAME);
     printf("id author %s\n", ENGINE_AUTHOR);
 
+    // Send options
+    printf("option name Hash type spin default %d min %d max %d\n", MIN_HASH_SIZE, MIN_HASH_SIZE, MAX_HASH_SIZE);
+    
     // Confirm
     printf("uciok\n");
 
@@ -153,6 +175,34 @@ static void handle_isready(char *args) {
 
 static void handle_ucinewgame(char *args) {
     initialize_game();
+}
+
+static void handle_setoption(char *args) {
+    assert(args);
+
+    char *cmd_name = strstr(args, "name ");
+    assert(cmd_name);
+    cmd_name += 5;
+
+    size_t name_len = strlen(cmd_name);
+    
+    char *cmd_val = strstr(args, " value ");
+    if (cmd_val) {
+        name_len -= strlen(cmd_val);
+        cmd_val += 6;
+    }
+
+    for (int i = 0; i < NUM_SUPPORTED_OPTION_CMDS; i++) {
+        if (!strncmp(cmd_name, option_subcmds[i].cmd_text, name_len)) {
+            option_subcmds[i].cmd_func(cmd_val);
+            return;
+        }
+    }
+}
+
+static void set_hash_size(char *val) {
+    TT_size_MB = atoi(val);
+    assert(TT_size_MB);
 }
 
 static void handle_position(char *args) {
@@ -248,6 +298,11 @@ static void handle_stop(char *args) {
 
 static void handle_quit(char *args) {
     handle_stop(args);
+
+    if (tt_exists()) {
+        free_tt();
+    }
+    
     running = false;
 }
 
@@ -338,7 +393,7 @@ static void *search_helper(void *arg) {
     move_t cur_move = best_move;
     int cur_depth = 1;
 
-    while (cur_depth <= MAX_DEPTH) {
+    while (cur_depth <= MAX_DEPTH) { 
         search(&game_board, game_history, &cur_move, NULL, cur_depth);
 
         if (atomic_load(&search_running)) {

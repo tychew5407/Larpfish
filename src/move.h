@@ -47,7 +47,7 @@ typedef enum {
     QUEEN_PROMO_CAPTURE  = 15
 } move_flag;
 
-/* FUNCTION PROTOTYPES */
+/* FUNCTIONS */
 
 /* Function: get_from
  * -------------------

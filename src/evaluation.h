@@ -9,6 +9,7 @@
 #ifndef EVALUATION_H
 #define EVALUATION_H
 
+#include <inttypes.h>
 #include "bitboard.h"
 #include "board.h"
 
@@ -36,6 +37,6 @@ static inline int get_piece_val(piece_t p) {
  * returns a score representing the evaluation of the given
  * position.
  */
-int evaluate(board *b);
+int16_t evaluate(board *b);
 
 #endif
