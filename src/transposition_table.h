@@ -15,7 +15,7 @@
 /* DEFINITIONS */
 #define TT_MOVE_MASK (0xFFFFULL << 48)
 #define TT_SCORE_MASK (0xFFFFULL << 32)
-#define TT_EVAL_MASK (0xFFFF << 16)
+#define TT_EVAL_MASK (0xFFFFULL << 16)
 #define TT_DEPTH_MASK (0x7F << 9)
 #define TT_AGE_MASK (0x7F << 2)
 #define TT_TYPE_MASK 0x3
@@ -98,8 +98,9 @@ bool tt_exists();
  * The `create_tt_entry` function takes the specified fields required and returns a
  * pointer to the tt_entry struct on the transposition table.
  *
- * If no entry was created due to an index collision, the function instead returns
- * NULL. This engine considers age and depth for its TT replacement scheme.
+ * If no entry was created due to existing, more important information already being
+ * present on the table's index, the function instead returns NULL. This engine
+ * considers age and depth for its TT replacement scheme.
  */
 tt_entry *create_tt_entry(zobrist_board key, move_t best_move, int16_t score, int16_t eval, uint8_t depth, uint8_t age, tt_node_t type);
 

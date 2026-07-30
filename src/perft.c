@@ -31,6 +31,8 @@ int cmp_strs(const void *a, const void *b) {
  * posiiton is valid (does not break the standard rules of the game).
  */
 uint64_t perft(board *b, zobrist_board *game_history, int depth) {
+    assert(game_history[b->halfmove_clock] == generate_zobrist_board(b));
+    
     move_t move_list[MAX_PLY];
     size_t n_moves;
     uint64_t nodes = 0;
@@ -115,8 +117,13 @@ int main(int argc, char *argv[]) {
             initialize_board(&board);
             uint64_t game_history[MAX_HALFMOVES + MAX_DEPTH];
 
+            for (int i = 1; i < MAX_HALFMOVES + MAX_DEPTH; i++) {
+                game_history[i] = 0;
+            }
+
             char *fen_ptr = fen_str;
             parse_fen(&board, fen_ptr);
+            game_history[board.halfmove_clock] = generate_zobrist_board(&board);
 
             printf("Position #%d: %s\n", positions, fen_str);
             print_board(&board);

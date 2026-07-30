@@ -23,7 +23,7 @@
 #include "search.h"
 
 /* ENGINE DEFINITIONS */
-#define ENGINE_NAME "Larpfish 1.0"
+#define ENGINE_NAME "Larpfish 0.3"
 #define ENGINE_AUTHOR "Tyler Chew"
 #define START_POS "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 #define DEFAULT_TT_SIZE 128
@@ -75,6 +75,7 @@ static board game_board;
 static zobrist_board game_history[MAX_HALFMOVES + MAX_DEPTH];
 
 static size_t TT_size_MB = DEFAULT_TT_SIZE;
+static uint8_t search_age = 0;
 
 /* UCI PROTOCOL GLOBAL VARIABLES:
  *   - `running` specifies whether the engine should continue running or not
@@ -107,6 +108,8 @@ static pthread_t search_thread;
 static pthread_t timer_thread;
 static atomic_bool timer_running = false;
 static uint64_t timer_duration = INFINITE_SEARCH_TIME;
+static bool search_thread_live = false;
+static bool timer_thread_live = false;
 
 int main() {
     init_attack_tables();
@@ -139,6 +142,7 @@ int main() {
 }
 
 static void initialize_game() {
+    handle_stop(NULL);
     initialize_board(&game_board);
 
     for (size_t i = 0; i < sizeof(game_history) / sizeof(zobrist_board); i++) {
@@ -146,12 +150,6 @@ static void initialize_game() {
     }
 
     empty_move_stack();
-
-    if (tt_exists()) {
-        free_tt();
-    }
-
-    init_tt(TT_size_MB);
 }
 
 static void handle_uci(char *args) {
@@ -175,6 +173,13 @@ static void handle_isready(char *args) {
 
 static void handle_ucinewgame(char *args) {
     initialize_game();
+
+    if (tt_exists()) {
+        free_tt();
+    }
+
+    init_tt(TT_size_MB);
+    search_age = 0;
 }
 
 static void handle_setoption(char *args) {
@@ -232,6 +237,7 @@ static void handle_position(char *args) {
     }
 
     parse_fen(&game_board, fen_ptr);
+    game_history[game_board.halfmove_clock] = generate_zobrist_board(&game_board);
 
     moves_ptr = strtok(moves_ptr, " ");
 
@@ -249,9 +255,6 @@ static void handle_position(char *args) {
 
 static void handle_go(char *args) {
     handle_stop(args); // To clean up any running threads
-
-    atomic_store(&search_running, true);
-    pthread_create(&search_thread, NULL, search_helper, NULL);
 
     // Parse time subcommands
     timer_duration = INFINITE_SEARCH_TIME;
@@ -278,19 +281,27 @@ static void handle_go(char *args) {
         args = strtok(NULL, " ");
     }
 
+    search_thread_live = true;
+    atomic_store(&search_running, true);
+    pthread_create(&search_thread, NULL, search_helper, NULL);
+    
     if (timer_duration != INFINITE_SEARCH_TIME) {
+        timer_thread_live = true;
+        atomic_store(&timer_running, true);
         pthread_create(&timer_thread, NULL, search_timer, NULL);
     }
     
 }
 
 static void handle_stop(char *args) {
-    if (atomic_load(&search_running)) {
+    if (search_thread_live) {
+        search_thread_live = false;
         atomic_store(&search_running, false);
         pthread_join(search_thread, NULL);
     }
 
-    if (atomic_load(&timer_running)) {
+    if (timer_thread_live) {
+        timer_thread_live = false;
         atomic_store(&timer_running, false);
         pthread_join(timer_thread, NULL);
     }
@@ -393,8 +404,14 @@ static void *search_helper(void *arg) {
     move_t cur_move = best_move;
     int cur_depth = 1;
 
+    if (search_age == 127) {
+        search_age = 0;
+    } else {
+        search_age ++;
+    }
+    
     while (cur_depth <= MAX_DEPTH) { 
-        search(&game_board, game_history, &cur_move, NULL, cur_depth);
+        search(&game_board, game_history, &cur_move, NULL, cur_depth, search_age);
 
         if (atomic_load(&search_running)) {
             best_move = cur_move;
@@ -404,7 +421,7 @@ static void *search_helper(void *arg) {
         
         cur_depth ++;
     }
-    
+
     char best_move_buf[6] = NULL_MOVE;
 
     if (best_move != NO_MOVE) {
@@ -423,8 +440,6 @@ static void *search_helper(void *arg) {
  * Its argument is a pointer to the number of ms to wait.
  */
 static void *search_timer(void *arg) {
-    atomic_store(&timer_running, true);
-
     uint64_t elapsed_ms = 0;
 
     while (atomic_load(&timer_running) && elapsed_ms < timer_duration) {

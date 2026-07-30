@@ -41,7 +41,7 @@ static inline int MVV_LVA(board *b, move_t move) {
  * list of move_score's, and populates the scored_move list each with
  * the move_score associated with the move_t from the move_t list.
  */
-static inline void score_moves(board *b, move_t *move_list, int *score_list, int n_moves) {
+static inline void score_moves(board *b, move_t *move_list, zobrist_board *TT, int *score_list, int n_moves) {
     for (int i = 0; i < n_moves; i++) {
         score_list[i] = MVV_LVA(b, move_list[i]);
     }

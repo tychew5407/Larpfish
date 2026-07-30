@@ -17,14 +17,14 @@ static inline int16_t no_moves_eval(board *b);
 static inline bool is_repeat(board *b, zobrist_board *game_history);
 static inline move_t get_next_move(move_t *move_list, int *score_list, size_t n_moves);
 static int16_t alpha_beta(board *b, zobrist_board *game_history, move_t *best_root_move, uint64_t *n_searched, int16_t alpha, int16_t beta, uint8_t depth, uint8_t age);
-static int16_t quiesce(board *b, zobrist_board *game_history, uint64_t *n_searched, int16_t alpha, int16_t beta);
+static int16_t quiesce(board *b, zobrist_board *game_history, uint64_t *n_searched, int16_t alpha, int16_t beta, tt_node_t *node_t);
 
-int search(board *b, zobrist_board *game_history, move_t *best_move, uint64_t *n_searched, uint8_t depth) {
+int search(board *b, zobrist_board *game_history, move_t *best_move, uint64_t *n_searched, uint8_t depth, uint8_t age) {
     if (n_searched) {
         *n_searched = 0;
     }
     
-    return alpha_beta(b, game_history, best_move, n_searched, -INT16_MAX, INT16_MAX, depth, b->halfmove_clock);
+    return alpha_beta(b, game_history, best_move, n_searched, -INT16_MAX, INT16_MAX, depth, age);
 }
 
 move_t find_first_legal(board *b, zobrist_board *game_history) {
@@ -57,6 +57,10 @@ static int16_t alpha_beta(board *b, zobrist_board *game_history, move_t *best_ro
         return ABORTED_EVAL;
     }
 
+    if (is_repeat(b, game_history)) {
+        return 0;
+    }
+
     zobrist_board cur_zobrist = (game_history[b->halfmove_clock]) ? game_history[b->halfmove_clock] : generate_zobrist_board(b);
     tt_entry *cur_entry = get_tt_entry(cur_zobrist);
     if (in_tt(cur_zobrist) &&
@@ -67,6 +71,15 @@ static int16_t alpha_beta(board *b, zobrist_board *game_history, move_t *best_ro
         if (node_type == PV_NODE ||
             (node_type == CUT_NODE && node_score >= beta) ||
             (node_type == ALL_NODE && node_score <= alpha)) {
+
+            // Handle checkmate over 50-move rule
+            if (node_score == CHECKMATE_EVAL) {
+                node_score -= b->fullmove_counter;
+            } else if (node_score == -CHECKMATE_EVAL) {
+                node_score += b->fullmove_counter;
+            } else if (is_50_move_rule(b)) {
+                return 0;
+            }
             
             if (best_root_move) {
                 *best_root_move = get_tt_entry_move(*cur_entry);
@@ -78,14 +91,14 @@ static int16_t alpha_beta(board *b, zobrist_board *game_history, move_t *best_ro
 
     int16_t static_eval = evaluate(b);
     
-    if (is_repeat(b, game_history)) {
-        create_tt_entry(cur_zobrist, NO_MOVE, 0, static_eval, depth, age, PV_NODE);
-        return 0;
-    }
-    
     if (depth == 0) {
-        int16_t ret_score = (is_50_move_rule(b)) ? 0 : quiesce(b, game_history, n_searched, alpha, beta);
-        create_tt_entry(cur_zobrist, NO_MOVE, ret_score, static_eval, depth, age, PV_NODE);
+        if (is_50_move_rule(b)) {
+            return 0;
+        }
+
+        tt_node_t q_node_type;
+        int16_t ret_score = quiesce(b, game_history, n_searched, alpha, beta, &q_node_type);
+        if (atomic_load(&search_running)) create_tt_entry(cur_zobrist, NO_MOVE, ret_score, static_eval, depth, age, q_node_type);
         return ret_score;
     }
 
@@ -115,7 +128,7 @@ static int16_t alpha_beta(board *b, zobrist_board *game_history, move_t *best_ro
 
             if (score == ABORTED_EVAL || score == -ABORTED_EVAL) {
                 unmake_move(b, game_history, cur_move);
-                break;
+                return ABORTED_EVAL;
             }
             
             if (score > best_score) {
@@ -142,12 +155,13 @@ static int16_t alpha_beta(board *b, zobrist_board *game_history, move_t *best_ro
     if (best_score == INT16_MIN) {
         int16_t ret_score = no_moves_eval(b);
         create_tt_entry(cur_zobrist, NO_MOVE, ret_score, static_eval, depth, age, PV_NODE);
+
+        if (ret_score != 0) ret_score += b->fullmove_counter;
         return ret_score;
     }
        
 
     if (is_50_move_rule(b)) {
-        create_tt_entry(cur_zobrist, NO_MOVE, 0, static_eval, depth, age, PV_NODE);
         return 0;
     }
 
@@ -155,9 +169,7 @@ static int16_t alpha_beta(board *b, zobrist_board *game_history, move_t *best_ro
         *best_root_move = best_move;
     }
 
-    if (atomic_load(&search_running)) {
-        create_tt_entry(cur_zobrist, best_move, best_score, static_eval, depth, age, cur_tt_type);
-    }
+    create_tt_entry(cur_zobrist, best_move, best_score, static_eval, depth, age, cur_tt_type);
     
     return best_score;
 }
@@ -167,7 +179,7 @@ static int16_t alpha_beta(board *b, zobrist_board *game_history, move_t *best_ro
  * The `quiesce` function performs a quiesce search, performed at the leaf-nodes
  * of the alpha-beta Negamax search to avoid the horizon effect.
  */
-static int16_t quiesce(board *b, zobrist_board *game_history, uint64_t *n_searched, int16_t alpha, int16_t beta) {
+static int16_t quiesce(board *b, zobrist_board *game_history, uint64_t *n_searched, int16_t alpha, int16_t beta, tt_node_t *node_t) {
     if (!atomic_load(&search_running)) {
         return ABORTED_EVAL;
     }
@@ -182,10 +194,14 @@ static int16_t quiesce(board *b, zobrist_board *game_history, uint64_t *n_search
     int16_t best_score = static_eval;
     
     if (best_score >= beta) {
+        if (node_t) *node_t = CUT_NODE;
         return best_score;
     }
 
+    if (node_t) *node_t = ALL_NODE;
+    
     if (best_score > alpha) {
+        if (node_t) *node_t = PV_NODE;
         alpha = best_score;
     }
 
@@ -205,7 +221,7 @@ static int16_t quiesce(board *b, zobrist_board *game_history, uint64_t *n_search
         make_move(b, game_history, cur_move);
 
         if (!is_in_check(b, b->play_side ^ 1)) {
-            int score = -quiesce(b, game_history, n_searched, -beta, -alpha);
+            int score = -quiesce(b, game_history, n_searched, -beta, -alpha, NULL);
 
             if (score == ABORTED_EVAL || score == -ABORTED_EVAL) {
                 unmake_move(b, game_history, cur_move);
@@ -216,11 +232,13 @@ static int16_t quiesce(board *b, zobrist_board *game_history, uint64_t *n_search
                 best_score = score;
                 
                 if (score > alpha) {
+                    if (node_t) *node_t = PV_NODE;
                     alpha = score;
                 }
             }
 
             if (score >= beta) {
+                if (node_t) *node_t = CUT_NODE;
                 unmake_move(b, game_history, cur_move);
                 return best_score;
             }
@@ -249,7 +267,7 @@ static inline bool is_50_move_rule(board *b) {
  * the player is in check or 0, meaning stalemate.
  */
 static inline int16_t no_moves_eval(board *b) {
-    return (is_in_check(b, b->play_side)) ? -(CHECKMATE_EVAL - b->fullmove_counter) : 0;
+    return (is_in_check(b, b->play_side)) ? -CHECKMATE_EVAL : 0;
 }
 
 /* Function: is_repeat
