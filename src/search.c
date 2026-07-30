@@ -86,6 +86,10 @@ static int16_t alpha_beta(board *b, zobrist_board *game_history, move_t *best_ro
             }
             
             return node_score;
+        } else if (node_type == CUT_NODE && node_score > alpha) {
+            alpha = node_score;
+        } else if (node_type == ALL_NODE && node_score < beta) {
+            beta = node_score;
         }
     }
 
@@ -107,7 +111,7 @@ static int16_t alpha_beta(board *b, zobrist_board *game_history, move_t *best_ro
     size_t n_moves;
 
     generate_moves(move_list, &n_moves, b);
-    score_moves(b, move_list, score_list, n_moves);
+    score_moves(b, game_history, move_list, score_list, n_moves);
 
     tt_node_t cur_tt_type = ALL_NODE;
     int16_t best_score = INT16_MIN;
@@ -183,6 +187,30 @@ static int16_t quiesce(board *b, zobrist_board *game_history, uint64_t *n_search
     if (!atomic_load(&search_running)) {
         return ABORTED_EVAL;
     }
+
+    zobrist_board cur_zobrist = (game_history[b->halfmove_clock]) ? game_history[b->halfmove_clock] : generate_zobrist_board(b);
+    tt_entry *cur_entry = get_tt_entry(cur_zobrist);
+    if (in_tt(cur_zobrist)) {
+        tt_node_t node_type = get_tt_entry_type(*cur_entry);
+        int16_t node_score = get_tt_entry_score(*cur_entry);
+
+        if (node_type == PV_NODE ||
+            (node_type == CUT_NODE && node_score >= beta) ||
+            (node_type == ALL_NODE && node_score <= alpha)) {
+
+            if (node_score == CHECKMATE_EVAL) {
+                node_score -= b->fullmove_counter;
+            } else if (node_score == -CHECKMATE_EVAL) {
+                node_score += b->fullmove_counter;
+            }
+            
+            return node_score;
+        } else if (node_type == CUT_NODE && node_score > alpha) {
+            alpha = node_score;
+        } else if (node_type == ALL_NODE && node_score < beta) {
+            beta = node_score;
+        }
+    }
     
     int16_t static_eval = evaluate(b);
     
@@ -206,7 +234,7 @@ static int16_t quiesce(board *b, zobrist_board *game_history, uint64_t *n_search
     }
 
     generate_moves(move_list, &n_moves, b);
-    score_moves(b, move_list, score_list, n_moves);
+    score_moves(b, game_history, move_list, score_list, n_moves);
 
     for (size_t i = 0; i < n_moves; i++) {
         move_t cur_move = get_next_move(move_list, score_list, n_moves);

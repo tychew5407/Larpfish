@@ -12,6 +12,7 @@
 #include <limits.h>
 #include "board.h"
 #include "move.h"
+#include "transposition_table.h"
 
 /* DEFINITIONS */
 
@@ -20,6 +21,9 @@
 
 // Sentinel value used for marking moves that are not captures.
 #define NON_CAPTURE_SCORE -1000
+
+// Sentinel value used for marking the best move according to TT.
+#define TT_SCORE 1000
 
 /* Function: MVV_LVA
  * ------------------
@@ -41,9 +45,15 @@ static inline int MVV_LVA(board *b, move_t move) {
  * list of move_score's, and populates the scored_move list each with
  * the move_score associated with the move_t from the move_t list.
  */
-static inline void score_moves(board *b, move_t *move_list, zobrist_board *TT, int *score_list, int n_moves) {
+static inline void score_moves(board *b, zobrist_board *game_history, move_t *move_list, int *score_list, int n_moves) {
+    move_t TT_move = NO_MOVE;
+    zobrist_board zb = game_history[b->halfmove_clock];
+    if (in_tt(zb)) {
+        TT_move = get_tt_entry_move(*get_tt_entry(zb));
+    }
+    
     for (int i = 0; i < n_moves; i++) {
-        score_list[i] = MVV_LVA(b, move_list[i]);
+        score_list[i] = (move_list[i] == TT_move) ? TT_SCORE : MVV_LVA(b, move_list[i]);
     }
 }
 
