@@ -16,13 +16,16 @@
 #include "fen.h"
 #include "zobrist.h"
 #include "move_make.h"
+#include "attack_tables.h"
 #include "movegen.h"
 #include "search.h"
+#include "transposition_table.h"
 
 static int MAX_DEPTH = 4;
 
 int main(int argc, char *argv[]) {
     init_attack_tables();
+    init_tt(64);
 
     char *file_path = argv[1];
     
@@ -79,4 +82,8 @@ int main(int argc, char *argv[]) {
         
         positions ++;
     }
+
+    fclose(FEN_file);
+    free_sliding_attacks();
+    free_tt();
 }

@@ -416,7 +416,8 @@ static void fill_magic_table(const ray_dir rays[], const size_t n_rays, const ui
         if (FIND_NEW_MAGICS) {
             magics_table[sq].magic_num = find_magic_num(&magics_table[sq], ray_index, rng);
         } else {
-            assert(test_magic_num(&magics_table[sq], magic_nums[sq], ray_index));
+            bool magic_valid = test_magic_num(&magics_table[sq], magic_nums[sq], ray_index);
+            assert(magic_valid);
             magics_table[sq].magic_num = magic_nums[sq];
         }
         

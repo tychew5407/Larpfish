@@ -26,14 +26,14 @@ static void generate_queen_moves(move_t *move_arr, size_t *index, board *b);
 void generate_moves(move_t *move_arr, size_t *length, board *board) {
     size_t index = 0;
 
+    generate_pawn_attacks(move_arr, &index, board);
     generate_pawn_dblpush(move_arr, &index, board);
     generate_pawn_push(move_arr, &index, board);
-    generate_pawn_attacks(move_arr, &index, board);
     generate_knight_moves(move_arr, &index, board);
-    generate_king_moves(move_arr, &index, board);
-    generate_rook_moves(move_arr, &index, board);
     generate_bishop_moves(move_arr, &index, board);
+    generate_rook_moves(move_arr, &index, board);
     generate_queen_moves(move_arr, &index, board);
+    generate_king_moves(move_arr, &index, board);
     
     *length = index;
 }

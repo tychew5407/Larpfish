@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -Wall -Wextra -O3 -march=native -std=gnu99
+CFLAGS = -g -Wall -Wextra -O3 -march=native -DNDEBUG -std=gnu99
 SRC_DIR = src
 BUILD_DIR = build
 EXCLUDE = $(SRC_DIR)/generate_magic.c $(SRC_DIR)/perft.c $(SRC_DIR)/test_search.c \

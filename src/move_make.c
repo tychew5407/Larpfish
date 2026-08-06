@@ -59,20 +59,21 @@ static void update_ep(board *b, zobrist_board *game_history, int to_sq, side mov
 // Helper function of `make_move` to update a board's castling bitarray.
 static void update_castling(board *b, zobrist_board *game_history, int from_sq, piece_t move_p, side move_s) {
     move_stack[move_stack_index].castling = b->castling;
-    toggle_zobrist_castling(&game_history[b->halfmove_clock], b->castling);
 
     if (move_p == KING) {
+        toggle_zobrist_castling(&game_history[b->halfmove_clock], b->castling);
         b->castling &= ~(CASTLE_ARR_START >> (2 * move_s));
         b->castling &= ~(CASTLE_ARR_START >> 1 >> (2 * move_s));
+        toggle_zobrist_castling(&game_history[b->halfmove_clock], b->castling);
     } else if (move_p == ROOK &&
                ((unsigned int)from_sq == KING_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN) ||
                 (unsigned int)from_sq == QUEEN_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN))) {
+        toggle_zobrist_castling(&game_history[b->halfmove_clock], b->castling);
         b->castling &= ~(CASTLE_ARR_START >>
                          ((unsigned int)from_sq == QUEEN_ROOK_START + (move_s * (SIDE_LEN - 1) * SIDE_LEN)) >>
                          (2 * move_s));
+        toggle_zobrist_castling(&game_history[b->halfmove_clock], b->castling);
     }
-
-   toggle_zobrist_castling(&game_history[b->halfmove_clock], b->castling);
 }
 
 // Helper function of `make_move` to remove a captured piece from its bitboard.

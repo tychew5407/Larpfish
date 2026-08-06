@@ -8,6 +8,7 @@
 #ifndef SEARCH_H
 #define SEARCH_H
 
+#include <inttypes.h>
 #include <stdatomic.h>
 #include "definitions.h"
 #include "board.h"
@@ -17,8 +18,8 @@
 #include "evaluation.h"
 
 /* DEFINITIONS */
-#define CHECKMATE_EVAL 1000
-#define ABORTED_EVAL 9999 // sentinel value when search is aborted
+#define CHECKMATE_EVAL (INT16_MAX - 1)
+#define ABORTED_EVAL INT16_MAX // sentinel value when search is aborted
 
 /* This global atomic_bool is used for UCI-support, where there are instances in which
  * the search may need to exit prematurely.

@@ -3,7 +3,7 @@
  * For more information, see "search.h".
  */
 
-#include <limits.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include "search.h"
 #include "move_ordering.h"

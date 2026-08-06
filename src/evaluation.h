@@ -3,7 +3,7 @@
  * This file contains the implementation for the evaluation function,
  * used for search to measure how optimal a given position is.
  *
- * This project uses pure material counting for evaluation to start.
+ * This project uses Michniewski's simplified evaluation function.
  */
 
 #ifndef EVALUATION_H
@@ -14,11 +14,11 @@
 #include "board.h"
 
 /* DEFINITIONS */
-#define PAWN_WEIGHT 1
-#define KNIGHT_WEIGHT 3
-#define BISHOP_WEIGHT 3
-#define ROOK_WEIGHT 5
-#define QUEEN_WEIGHT 9
+#define PAWN_WEIGHT 100
+#define KNIGHT_WEIGHT 320
+#define BISHOP_WEIGHT 330
+#define ROOK_WEIGHT 500
+#define QUEEN_WEIGHT 900
 
 extern const int MATERIAL[NUM_PIECES - 1];
 
