@@ -18,6 +18,7 @@
 #include "zobrist.h"
 #include "transposition_table.h"
 #include "move_make.h"
+#include "attack_tables.h"
 #include "movegen.h"
 #include "evaluation.h"
 #include "search.h"
@@ -313,6 +314,8 @@ static void handle_quit(char *args) {
     if (tt_exists()) {
         free_tt();
     }
+
+    free_sliding_attacks();
     
     running = false;
 }
@@ -410,7 +413,7 @@ static void *search_helper(void *arg) {
         search_age ++;
     }
     
-    while (cur_depth <= MAX_DEPTH) { 
+    while (cur_depth <= MAX_DEPTH) {  
         search(&game_board, game_history, &cur_move, NULL, cur_depth, search_age);
 
         if (atomic_load(&search_running)) {

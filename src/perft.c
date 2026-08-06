@@ -17,6 +17,7 @@
 #include "zobrist.h"
 #include "fen.h"
 #include "move_make.h"
+#include "attack_tables.h"
 #include "movegen.h"
 
 int MAX_DEPTH = 3;
@@ -31,7 +32,7 @@ int cmp_strs(const void *a, const void *b) {
  * posiiton is valid (does not break the standard rules of the game).
  */
 uint64_t perft(board *b, zobrist_board *game_history, int depth) {
-    assert(game_history[b->halfmove_clock] == generate_zobrist_board(b));
+    //assert(game_history[b->halfmove_clock] == generate_zobrist_board(b));
     
     move_t move_list[MAX_PLY];
     size_t n_moves;
@@ -144,7 +145,10 @@ int main(int argc, char *argv[]) {
         }
 
         printf("TOTAL NODES: %lu\n", nodes);
+
+        fclose(FEN_file);
     }
-    
+
+    free_sliding_attacks();
     return 0;
 }

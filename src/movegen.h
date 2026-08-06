@@ -11,39 +11,11 @@
 #include "bitboard.h"
 #include "move.h"
 #include "board.h"
+#include "attack_tables.h"
 
 /* DEFINITIONS */
-#define KNIGHT_DIRS 8
-#define KING_DIRS 8
 #define KING_CASTLE_PATH (uint64_t)0x60
 #define QUEEN_CASTLE_PATH (uint64_t)0xe
-#define RAY_DIRS 8
-#define NUM_SLIDERS 3
-
-typedef enum {
-    NORTH,
-    NORTHEAST,
-    EAST,
-    SOUTHEAST,
-    SOUTH,
-    SOUTHWEST,
-    WEST,
-    NORTHWEST
-} ray_dir;
-
-typedef struct {
-    ray_dir dir;
-    size_t shift_amount;
-    bool negative;
-    bitboard wrap_check;
-} ray;
-
-/* Function: init_attack_tables
- * -----------------------------
- * The `init_attack_tables` function initializes the private lookup attack tables for
- * move generation. Should be called before any move generation.
- */
-void init_attack_tables();
 
 /* Function: generate_moves
  * -------------------------
