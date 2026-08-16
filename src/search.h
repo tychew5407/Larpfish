@@ -20,6 +20,7 @@
 /* DEFINITIONS */
 #define CHECKMATE_EVAL (INT16_MAX - 1)
 #define ABORTED_EVAL INT16_MAX // sentinel value when search is aborted
+#define NO_TT_SCORE INT16_MAX // sentinel value when TT lookup score cannot be used or is not found
 
 /* This global atomic_bool is used for UCI-support, where there are instances in which
  * the search may need to exit prematurely.
@@ -37,7 +38,7 @@ extern atomic_bool search_running;
  * The function also supports `n_searched` which, when not NULL, is populated with the
  * number of nodes considered by the search function.
  */
-int search(board *b, zobrist_board *game_history, move_t *best_move, uint64_t *n_searched, uint8_t depth, uint8_t age);
+int search(board *b, zobrist_board *game_history, move_t *best_move, uint64_t *n_searched, uint8_t depth, uint8_t age, int16_t alpha, int16_t beta);
 
 /* Function: find_first_legal
  * ---------------------------

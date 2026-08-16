@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
         
         move_t best_move = NO_MOVE;
         uint64_t nodes_searched = 0;
-        int best_eval = search(&board, game_history, &best_move, &nodes_searched, MAX_DEPTH, 0);
+        int best_eval = search(&board, game_history, &best_move, &nodes_searched, MAX_DEPTH, 0, -INT16_MAX, INT16_MAX);
         
         atomic_store(&search_running, false);
 

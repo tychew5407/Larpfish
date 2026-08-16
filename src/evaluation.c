@@ -122,7 +122,7 @@ static inline int flip_sq(int sq) {
  * PST to use based on the game phase. Assumes material_count
  * to be updated.
  */
-static inline const int *choose_king_pst(board *b) {
+static inline const int *choose_king_pst() {
     for (int s = 0; s < NUM_SIDES; s++) {
         if (piece_count[s][QUEEN] > 0 ||
             piece_count[s][ROOK] > 0 ||
@@ -161,7 +161,7 @@ int16_t evaluate(board *b) {
     // Consider King PST
     int white_king_sq = bit_scan_forward(b->piece_bbs[KING][WHITE]);
     int black_king_sq = flip_sq(bit_scan_forward(b->piece_bbs[KING][BLACK]));
-    int *cur_king_pst = choose_king_pst(b);
+    const int *cur_king_pst = choose_king_pst();
 
     result += (cur_king_pst[white_king_sq] - cur_king_pst[black_king_sq]);
     result *= SIDE_WEIGHT[s];

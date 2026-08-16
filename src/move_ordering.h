@@ -18,11 +18,7 @@
 
 // Sentinel value used for marking moves that have already been searched.
 #define SEARCHED_SCORE INT_MIN
-
-// Sentinel value used for marking moves that are not captures.
 #define NON_CAPTURE_SCORE -1000
-
-// Sentinel value used for marking the best move according to TT.
 #define TT_SCORE 1000
 
 /* Function: MVV_LVA
