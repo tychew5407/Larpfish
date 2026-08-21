@@ -20,7 +20,25 @@
 /* DEFINITIONS */
 #define CHECKMATE_EVAL (INT16_MAX - 1)
 #define ABORTED_EVAL INT16_MAX // sentinel value when search is aborted
-#define NO_TT_SCORE INT16_MAX // sentinel value when TT lookup score cannot be used or is not found
+#define NO_EVAL INT16_MIN /* sentinel value to indicate that a static evaluation was not recorded
+                             on the eval stack, aka the position is in check. */
+#define NO_TT_SCORE INT16_MAX  // sentinel value when TT lookup score cannot be used or is not foun
+#define RFP_MARGIN 175           // margin constant for reverse futility pruning
+#define IMPROVING_RFP_MARGIN 135 // margin constant for RFP when position is improving
+#define RFP_DEPTH_BOUND 4      // depth bound constant for reverse futility pruning
+#define ASPIRATION_WINDOW_DELTA_DEFAULT 50
+
+typedef struct {
+    board *game_board;
+    zobrist_board *game_history;
+    uint64_t *n_searched;
+    uint8_t age;
+} search_context;
+
+typedef struct {
+    int16_t alpha;
+    int16_t beta;
+} search_window;
 
 /* This global atomic_bool is used for UCI-support, where there are instances in which
  * the search may need to exit prematurely.
@@ -34,17 +52,7 @@ extern atomic_bool search_running;
  *
  * `best_move` should ideally be initialized to NO_MOVE, so that there is indication
  * of whether it was modified (aka if search yielded results) or not.
- *
- * The function also supports `n_searched` which, when not NULL, is populated with the
- * number of nodes considered by the search function.
  */
-int search(board *b, zobrist_board *game_history, move_t *best_move, uint64_t *n_searched, uint8_t depth, uint8_t age, int16_t alpha, int16_t beta);
-
-/* Function: find_first_legal
- * ---------------------------
- * The `find_first_legal` function returns the eval of the first legal move that can be
- * found, used as a last-ditch effort when the search aborts before any moves were found.
- */
-move_t find_first_legal(board *b, zobrist_board *game_history);
+move_t search(search_context *context, uint8_t max_depth);
 
 #endif

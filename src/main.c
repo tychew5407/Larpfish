@@ -5,6 +5,7 @@
  */
 
 #include <string.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -33,7 +34,6 @@
 #define MAX_DEPTH 100
 #define INFINITE_SEARCH_TIME 0
 #define TIMER_INTERVAL 10
-#define ASPIRATION_WINDOW_DELTA_DEFAULT 50
 
 /* UCI PROTOCOL DEFINITIONS */
 #define UCI_BUF_SIZE (128 * 1024)
@@ -404,55 +404,20 @@ static move_t decode_UCI(const board *b, const char *UCI_str) {
  * gets called.
  */
 static void *search_helper(void *arg) {
-    move_t best_move = find_first_legal(&game_board, game_history);
-    move_t cur_move = best_move;
-    int cur_depth = 1;
-
-    // Aspiration window bounds
-    int16_t window_lower = -INT16_MAX;
-    int16_t window_upper = INT16_MAX;
-    int16_t delta_low = ASPIRATION_WINDOW_DELTA_DEFAULT;
-    int16_t delta_high = ASPIRATION_WINDOW_DELTA_DEFAULT;
-    
     if (search_age == 127) {
         search_age = 0;
     } else {
         search_age ++;
     }
+
+    search_context context = {
+        .game_board = &game_board,
+        .game_history = game_history,
+        .n_searched = NULL,
+        .age = game_board.fullmove_counter
+    };
     
-    while (cur_depth <= MAX_DEPTH) {  
-        int score;
-        
-        while (atomic_load(&search_running)) {
-            score = search(&game_board, game_history,
-                           &cur_move, NULL,
-                           cur_depth, search_age,
-                           window_lower, window_upper);
-
-            if (score <= window_lower) {
-                window_lower = (window_lower <= -(INT16_MAX - delta_low)) ? -INT16_MAX : window_lower - delta_low;
-                delta_low = (delta_low < INT16_MAX / 2) ? delta_low * 2 : INT16_MAX;
-            } else if (score >= window_upper) {
-                window_upper = (window_upper >= INT16_MAX - delta_high) ? INT16_MAX : window_upper + delta_high;
-                delta_high = (delta_high < INT16_MAX / 2)? delta_high * 2 : INT16_MAX;
-            } else {
-                break;
-            }
-        }
-
-        if (atomic_load(&search_running)) {
-            best_move = cur_move;
-
-            delta_low = ASPIRATION_WINDOW_DELTA_DEFAULT;
-            delta_high = ASPIRATION_WINDOW_DELTA_DEFAULT;
-            window_lower = (score >= -INT16_MAX + delta_low) ? score - delta_low : -INT16_MAX;
-            window_upper = (score <= INT16_MAX - delta_high) ? score + delta_high : INT16_MAX;
-        } else {
-            break;
-        }
-        
-        cur_depth ++;
-    }
+    move_t best_move = search(&context, MAX_DEPTH);
 
     char best_move_buf[6] = NULL_MOVE;
 

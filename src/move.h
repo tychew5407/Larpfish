@@ -119,4 +119,22 @@ static inline move_t encode_move(int from_sq, int to_sq, move_flag flag) {
     return result;
 }
 
+/* Function: is_capture
+ * ---------------------
+ * The `is_capture` function takes a move and returns whether it is a
+ * capture move.
+ */
+static inline bool is_capture(move_t move) {
+    return get_flag(move) & CAPTURE_FLAG;
+}
+
+/* Function: is_promotion
+ * -----------------------
+ * The `is_promotion` function takes a move and returns whether it is a
+ * promotion move.
+ */
+static inline bool is_promotion(move_t move) {
+    return get_flag(move) & PROMO_FLAG;
+}
+
 #endif

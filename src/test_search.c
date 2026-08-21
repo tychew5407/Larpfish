@@ -21,7 +21,7 @@
 #include "search.h"
 #include "transposition_table.h"
 
-static int MAX_DEPTH = 4;
+static int MAX_DEPTH = 8;
 
 int main(int argc, char *argv[]) {
     init_attack_tables();
@@ -65,16 +65,22 @@ int main(int argc, char *argv[]) {
 
         atomic_store(&search_running, true);
         
-        move_t best_move = NO_MOVE;
         uint64_t nodes_searched = 0;
-        int best_eval = search(&board, game_history, &best_move, &nodes_searched, MAX_DEPTH, 0, -INT16_MAX, INT16_MAX);
+
+        search_context context = (search_context) {
+            .game_board = &board,
+            .game_history = game_history,
+            .n_searched = &nodes_searched,
+            .age = board.fullmove_counter
+        };
+        move_t best_move = search(&context, MAX_DEPTH);
         
         atomic_store(&search_running, false);
 
         if (best_move != NO_MOVE) {
-            printf("Best move: %d to %d. Eval: %d\n", get_from(best_move), get_to(best_move), best_eval);
+            printf("Best move: %d to %d.\n", get_from(best_move), get_to(best_move));
         } else {
-            printf("No moves in this position. Eval: %d\n", best_eval);
+            printf("No moves in this position.\n");
         }
 
         printf("Nodes searched: %" PRIu64 "\n", nodes_searched);
