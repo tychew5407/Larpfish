@@ -115,6 +115,7 @@ static bool timer_thread_live = false;
 
 int main() {
     init_attack_tables();
+    init_search_tables();
     
     while (running && fgets(cmd_input, UCI_BUF_SIZE, stdin)) {
         /* Truncate the newline character, or raise an error if no newline

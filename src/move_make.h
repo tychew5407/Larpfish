@@ -43,6 +43,21 @@ void make_move(board *b, zobrist_board *game_history, move_t move);
  */
 void unmake_move(board *b, zobrist_board *game_history, move_t move);
 
+/* Function: make_null_move
+ * -------------------------
+ * The `make_null_move` function modifies the board and game history to make a null
+ * move, as if the player passes their turn without making a move. This is used for
+ * heuristics such as NMP.
+ */
+void make_null_move(board *b, zobrist_board game_history[]);
+
+/* Function: unmake_null_move
+ * --------------------------
+ * The `unmake_null_move` function modifies the board and game history to revert
+ * a null move that was just made. Assumes that the last move played was a null move.
+ */
+void unmake_null_move(board *b, zobrist_board game_history[]);
+
 /* Function: empty_move_stack
  * ---------------------------
  * The `empty_move_stack` function empties the internal move stack, used for unmaking moves.

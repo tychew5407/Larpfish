@@ -5,16 +5,38 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <math.h>
 #include "search.h"
+#include "move_make.h"
+#include "movegen.h"
+#include "evaluation.h"
 #include "move_ordering.h"
 #include "transposition_table.h"
 
-atomic_bool search_running = false;
+/* DEFINITIONS */
+#define CHECKMATE_EVAL (INT16_MAX - 1)
+#define ABORTED_EVAL INT16_MAX // sentinel value when search is aborted
+#define NO_EVAL INT16_MIN /* sentinel value to indicate that a static evaluation was not recorded
+                             on the eval stack, aka the position is in check. */
+
+#define NO_TT_SCORE INT16_MAX  // sentinel value when TT lookup score cannot be used or is not found
+
+#define RFP_MARGIN 150           // margin constant for reverse futility pruning
+#define IMPROVING_RFP_MARGIN 135 // margin constant for RFP when position is improving
+#define RFP_DEPTH_BOUND 4      // depth bound constant for reverse futility pruning
+
+#define NMP_REDUCTION 3
+
+#define LMR_MAX_DEPTH 64 // exclusive upper bounds
+#define LMR_MAX_MOVES 64
+#define LMR_DEPTH_BOUND 3
+
+#define ASPIRATION_WINDOW_DELTA_DEFAULT 50
 
 /* FUNCTION PROTOTYPES */
 static inline move_t find_first_legal(board *b, zobrist_board game_history[]);
 static int16_t alpha_beta_root(search_context *context, search_window window, move_t *best_move, uint8_t depth);
-static int16_t alpha_beta(search_context *context, search_window window, int16_t eval_stack[], bool is_PV, uint8_t depth, uint8_t ply);
+static int16_t alpha_beta(search_context *context, search_window window, int16_t eval_stack[], bool is_PV, bool allow_null_move, uint8_t depth, uint8_t ply);
 static int16_t quiesce(search_context *context, search_window window, tt_node_t *node_type, uint8_t ply);
 static int16_t tt_lookup(zobrist_board key, search_window *window, move_t *best_root_move, uint8_t depth);
 static inline bool is_50_move_rule(board *b);
@@ -25,6 +47,17 @@ static inline bool widen_aspiration_window(search_window *aspiration, search_win
 static inline void next_aspiration_window(search_window *aspiration, search_window *delta, const int16_t score);
 static inline bool adjust_mate_score(int16_t *score, uint8_t ply);
 static inline bool static_eval_improving(int16_t eval_stack[], uint8_t ply);
+static void compute_LMR_base();
+
+/* GLOBAL VARIABLES */
+atomic_bool search_running = false;
+
+// Lookup table for base LMR reduction w.r.t. depth and moves
+static uint8_t LMR_base[LMR_MAX_DEPTH][LMR_MAX_MOVES];
+
+void init_search_tables() {
+    compute_LMR_base();
+}
 
 move_t search(search_context *context, const uint8_t max_depth) {
     if (context->n_searched) {
@@ -64,6 +97,20 @@ move_t search(search_context *context, const uint8_t max_depth) {
     }
 
     return best_move;
+}
+
+int16_t q_search(search_context *context) {
+    if (context->n_searched) {
+        *(context->n_searched) = 0;
+    }
+
+    // Throwaway argument needed, node_type is guaranteed to remain PV_NODE
+    tt_node_t node_type = PV_NODE;
+    
+    return quiesce(context,
+                   (search_window) {.alpha = -INT16_MAX, .beta = INT16_MAX},
+                   &node_type,
+                   0);
 }
 
 /* Function: find_first_legal
@@ -130,12 +177,8 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
     int16_t static_eval = evaluate(context->game_board);
     int16_t eval_stack[MAX_PLY];
 
-    if (in_check) {
-        eval_stack[0] = NO_EVAL;
-    } else {
-        eval_stack[0] = static_eval;
-    }
-
+    eval_stack[0] = (in_check) ? NO_EVAL : static_eval;
+    
     for (size_t i = 0; i < n_moves; i++) {
         move_t cur_move = get_next_move(move_list, score_list, n_moves);
         assert(cur_move != NO_MOVE);
@@ -150,14 +193,14 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
             int score;
             if (i == 0) {
                 score = -alpha_beta(context, (search_window) {.alpha = -window.beta, .beta = -window.alpha},
-                                    eval_stack, true, depth - 1, 1);
+                                    eval_stack, true, true, depth - 1, 1);
             } else {
                 score = -alpha_beta(context, (search_window) {.alpha = -window.alpha - 1, .beta = -window.alpha},
-                                    eval_stack, false, depth - 1, 1);
+                                    eval_stack, false, true, depth - 1, 1);
 
                 if (score > window.alpha && score < window.beta) {
                     score = -alpha_beta(context, (search_window) {.alpha = -window.beta, .beta = -window.alpha},
-                                        eval_stack, true, depth - 1, 1);
+                                        eval_stack, true, true, depth - 1, 1);
                 }
             }
 
@@ -216,7 +259,8 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
  * The `alpha_beta` function is the implementation of the actual
  * alpha-beta Negamax algorithm, which is called by search().
  */
-static int16_t alpha_beta(search_context *context, search_window window, int16_t eval_stack[], bool is_PV, uint8_t depth, uint8_t ply) {
+static int16_t alpha_beta(search_context *context, search_window window, int16_t eval_stack[],
+                          bool is_PV, bool allow_null_move, uint8_t depth, uint8_t ply) {
     if (!atomic_load(&search_running)) {
         return ABORTED_EVAL;
     }
@@ -259,12 +303,8 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
     // Calculate improving
     bool in_check = is_in_check(context->game_board, context->game_board->play_side);
     
-    if (in_check) {
-        eval_stack[ply] = NO_EVAL;
-    } else {
-        eval_stack[ply] = static_eval;
-    }
-
+    eval_stack[ply] = (in_check) ? NO_EVAL : static_eval;
+    
     bool improving = static_eval_improving(eval_stack, ply);
     
     // RFP
@@ -277,8 +317,28 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
         !in_check /*  && */
         /* tt_move != NO_MOVE && !is_capture(tt_move) && */
         /* tt_node != PV_NODE */) {
-        
+        //create_tt_entry(cur_zobrist, NO_MOVE, static_eval, static_eval, depth, context->age, CUT_NODE);
         return static_eval;
+    }
+
+    // NMP
+    if (allow_null_move && !in_check && 
+        (context->game_board->piece_bbs[KNIGHT][context->game_board->play_side] ||
+         context->game_board->piece_bbs[BISHOP][context->game_board->play_side] ||
+         context->game_board->piece_bbs[ROOK][context->game_board->play_side] ||
+         context->game_board->piece_bbs[QUEEN][context->game_board->play_side])) {
+        int reduced_depth = (depth >= NMP_REDUCTION) ? depth - NMP_REDUCTION : 0;
+        
+        make_null_move(context->game_board, context->game_history);
+        int16_t NMP_score = -alpha_beta(context, (search_window) {.alpha = -window.beta, .beta = -window.beta + 1},
+                                        eval_stack, false, false, reduced_depth, ply + 1);
+
+        unmake_null_move(context->game_board, context->game_history);
+        
+        if (NMP_score >= window.beta) {
+            //create_tt_entry(cur_zobrist, NO_MOVE, NMP_score, static_eval, reduced_depth, context->age, CUT_NODE);
+            return NMP_score;
+        }
     }
 
     move_t move_list[MAX_MOVES];
@@ -306,14 +366,31 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
             int score;
             if (i == 0) {
                 score = -alpha_beta(context, (search_window) {.alpha = -window.beta, .beta = -window.alpha},
-                                    eval_stack, true, depth - 1, ply + 1);
+                                    eval_stack, true, true, depth - 1, ply + 1);
             } else {
-                score = -alpha_beta(context, (search_window) {.alpha = -window.alpha - 1, .beta = -window.alpha},
-                                    eval_stack, false, depth - 1, ply + 1);
+                bool should_LMR = depth >= LMR_DEPTH_BOUND;
 
+                if (should_LMR) {
+                    int LMR_depth_index = (depth < LMR_MAX_DEPTH) ? depth : LMR_MAX_DEPTH - 1;
+                    int LMR_moves_index = (i < LMR_MAX_MOVES) ? i : LMR_MAX_MOVES - 1;
+                    uint8_t LMR_reduction = LMR_base[LMR_depth_index][LMR_moves_index];
+                    uint8_t LMR_depth = (depth > 1 + LMR_reduction) ? depth - 1 - LMR_reduction : 0;
+                    
+                    // Null window, reduced search
+                    score = -alpha_beta(context, (search_window) {.alpha = -window.alpha - 1, .beta = -window.alpha},
+                                    eval_stack, false, true, LMR_depth, ply + 1);
+                }
+                
+                if (!should_LMR || score > window.alpha) {
+                    // Null window, full search
+                    score = -alpha_beta(context, (search_window) {.alpha = -window.alpha - 1, .beta = -window.alpha},
+                                        eval_stack, false, true, depth - 1, ply + 1);
+                }
+                
                 if (score > window.alpha && score < window.beta) {
+                    // Full window, full search
                     score = -alpha_beta(context, (search_window) {.alpha = -window.beta, .beta = -window.alpha},
-                                        eval_stack, true, depth - 1, ply + 1);
+                                        eval_stack, true, true, depth - 1, ply + 1);
                 }
             }
 
@@ -628,4 +705,19 @@ static inline bool static_eval_improving(int16_t eval_stack[], uint8_t ply) {
     }
 
     return true;
+}
+
+/* Function: compute_LMR_base
+ * ---------------------------
+ * The `compute_LMR_base` function populates the precomputed lookup table for
+ * LMR base reduction values, using the formula from Obsidian:
+ *
+ * = 0.99 + ln(depth) * ln(moves) / 3.14
+ */
+static void compute_LMR_base() {
+    for (int depth = 1; depth < LMR_MAX_DEPTH; depth++) {
+        for (int moves = 1; moves < LMR_MAX_MOVES; moves++) {
+            LMR_base[depth][moves] = 0.99 + log(depth) * log(moves) / 3.14;
+        }
+    }
 }

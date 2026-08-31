@@ -1,5 +1,6 @@
 CC = gcc
 CFLAGS = -g -Wall -Wextra -O3 -march=native -DNDEBUG -std=gnu99
+LDLIBS = -lm
 SRC_DIR = src
 BUILD_DIR = build
 EXCLUDE = $(SRC_DIR)/generate_magic.c $(SRC_DIR)/perft.c $(SRC_DIR)/test_search.c \
@@ -29,15 +30,15 @@ TEST_ZOBRIST_TARGET = test_zobrist
 all: $(CHESS_TARGET) $(MAGIC_TARGET) $(PERFT_TARGET) $(TEST_SEARCH_TARGET) \
 	 $(ZOBRIST_TARGET) $(TEST_ZOBRIST_TARGET)
 $(CHESS_TARGET): $(CHESS_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 $(PERFT_TARGET): $(PERFT_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 $(TEST_SEARCH_TARGET): $(TEST_SEARCH_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 $(ZOBRIST_TARGET): $(ZOBRIST_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 $(TEST_ZOBRIST_TARGET): $(TEST_ZOBRIST_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@

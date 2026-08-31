@@ -13,20 +13,7 @@
 #include "definitions.h"
 #include "board.h"
 #include "move.h"
-#include "move_make.h"
-#include "movegen.h"
-#include "evaluation.h"
-
-/* DEFINITIONS */
-#define CHECKMATE_EVAL (INT16_MAX - 1)
-#define ABORTED_EVAL INT16_MAX // sentinel value when search is aborted
-#define NO_EVAL INT16_MIN /* sentinel value to indicate that a static evaluation was not recorded
-                             on the eval stack, aka the position is in check. */
-#define NO_TT_SCORE INT16_MAX  // sentinel value when TT lookup score cannot be used or is not foun
-#define RFP_MARGIN 175           // margin constant for reverse futility pruning
-#define IMPROVING_RFP_MARGIN 135 // margin constant for RFP when position is improving
-#define RFP_DEPTH_BOUND 4      // depth bound constant for reverse futility pruning
-#define ASPIRATION_WINDOW_DELTA_DEFAULT 50
+#include "zobrist.h"
 
 typedef struct {
     board *game_board;
@@ -45,6 +32,13 @@ typedef struct {
  */
 extern atomic_bool search_running;
 
+/* Function: init_search_tables
+ * ----------------------------
+ * The `init_search_tables` function computes and populates the internal lookup
+ * tables used by the search function. Should be called once during engine startup.
+ */
+void init_search_tables();
+
 /* Function: search
  * -----------------
  * The `search` function outputs the score of the best move of the current board
@@ -54,5 +48,12 @@ extern atomic_bool search_running;
  * of whether it was modified (aka if search yielded results) or not.
  */
 move_t search(search_context *context, uint8_t max_depth);
+
+/* Function: q_search
+ * -------------------
+ * The `q_search` function outputs the score of the current board position according
+ * to the quiescence search. No move is returned. This is used for Texel tuning purposes.
+ */
+int16_t q_search(search_context *context);
 
 #endif

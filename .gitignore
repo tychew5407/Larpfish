@@ -6,3 +6,7 @@ test_search
 test_zobrist
 *~
 callgrind.*
+src/NNUE.h
+src/NNUE.c
+src/NNUE_trainer.py
+venv/
