@@ -178,6 +178,8 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
     int16_t eval_stack[MAX_PLY];
 
     eval_stack[0] = (in_check) ? NO_EVAL : static_eval;
+
+    uint8_t moves_searched = 0;
     
     for (size_t i = 0; i < n_moves; i++) {
         move_t cur_move = get_next_move(move_list, score_list, n_moves);
@@ -195,10 +197,29 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
                 score = -alpha_beta(context, (search_window) {.alpha = -window.beta, .beta = -window.alpha},
                                     eval_stack, true, true, depth - 1, 1);
             } else {
-                score = -alpha_beta(context, (search_window) {.alpha = -window.alpha - 1, .beta = -window.alpha},
-                                    eval_stack, false, true, depth - 1, 1);
+                bool should_LMR = depth >= LMR_DEPTH_BOUND &&
+                    !(is_capture(cur_move) || is_promotion(cur_move)) &&
+                    !in_check && !is_in_check(context->game_board, context->game_board->play_side);
 
+                if (should_LMR) {
+                    int LMR_depth_index = (depth < LMR_MAX_DEPTH) ? depth : LMR_MAX_DEPTH - 1;
+                    int LMR_moves_index = (moves_searched < LMR_MAX_MOVES) ? moves_searched : LMR_MAX_MOVES - 1;
+                    uint8_t LMR_reduction = LMR_base[LMR_depth_index][LMR_moves_index];
+                    uint8_t LMR_depth = (depth > 1 + LMR_reduction) ? depth - 1 - LMR_reduction : 0;
+                    
+                    // Null window, reduced search
+                    score = -alpha_beta(context, (search_window) {.alpha = -window.alpha - 1, .beta = -window.alpha},
+                                    eval_stack, false, true, LMR_depth, 1);
+                }
+                
+                if (!should_LMR || score > window.alpha) {
+                    // Null window, full search
+                    score = -alpha_beta(context, (search_window) {.alpha = -window.alpha - 1, .beta = -window.alpha},
+                                        eval_stack, false, true, depth - 1, 1);
+                }
+                
                 if (score > window.alpha && score < window.beta) {
+                    // Full window, full search
                     score = -alpha_beta(context, (search_window) {.alpha = -window.beta, .beta = -window.alpha},
                                         eval_stack, true, true, depth - 1, 1);
                 }
@@ -232,6 +253,8 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
                 
                 return best_score;
             }
+
+            moves_searched++;
         }
 
         unmake_move(context->game_board, context->game_history, cur_move);
@@ -351,6 +374,8 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
     tt_node_t node_type = ALL_NODE;
     int16_t best_score = INT16_MIN;
     move_t best_move = NO_MOVE;
+
+    uint8_t moves_searched = 0;
     
     for (size_t i = 0; i < n_moves; i++) {
         move_t cur_move = get_next_move(move_list, score_list, n_moves);
@@ -368,11 +393,14 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
                 score = -alpha_beta(context, (search_window) {.alpha = -window.beta, .beta = -window.alpha},
                                     eval_stack, true, true, depth - 1, ply + 1);
             } else {
-                bool should_LMR = depth >= LMR_DEPTH_BOUND;
+                bool should_LMR = depth >= LMR_DEPTH_BOUND &&
+                    !(is_capture(cur_move) || is_promotion(cur_move)) &&
+                    !in_check && !is_in_check(context->game_board, context->game_board->play_side) &&
+                    !is_PV;
 
                 if (should_LMR) {
                     int LMR_depth_index = (depth < LMR_MAX_DEPTH) ? depth : LMR_MAX_DEPTH - 1;
-                    int LMR_moves_index = (i < LMR_MAX_MOVES) ? i : LMR_MAX_MOVES - 1;
+                    int LMR_moves_index = (moves_searched < LMR_MAX_MOVES) ? moves_searched : LMR_MAX_MOVES - 1;
                     uint8_t LMR_reduction = LMR_base[LMR_depth_index][LMR_moves_index];
                     uint8_t LMR_depth = (depth > 1 + LMR_reduction) ? depth - 1 - LMR_reduction : 0;
                     
@@ -416,6 +444,8 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
                 
                 return best_score;
             }
+
+            moves_searched++;
         }
 
         unmake_move(context->game_board, context->game_history, cur_move);
