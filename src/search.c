@@ -38,7 +38,7 @@ static inline move_t find_first_legal(board *b, zobrist_board game_history[]);
 static int16_t alpha_beta_root(search_context *context, search_window window, move_t *best_move, uint8_t depth);
 static int16_t alpha_beta(search_context *context, search_window window, int16_t eval_stack[], bool is_PV, bool allow_null_move, uint8_t depth, uint8_t ply);
 static int16_t quiesce(search_context *context, search_window window, tt_node_t *node_type, uint8_t ply);
-static int16_t tt_lookup(zobrist_board key, search_window *window, move_t *best_root_move, uint8_t depth);
+static int16_t tt_lookup(zobrist_board key, search_window *window, move_t *tt_move, bool is_root, uint8_t depth);
 static inline bool is_50_move_rule(board *b);
 static inline int16_t no_moves_eval(bool in_check);
 static inline bool is_repeat(board *b, zobrist_board game_history[]);
@@ -151,9 +151,12 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
     // TT lookup
     zobrist_board cur_zobrist = context->game_history[context->game_board->halfmove_clock];
     assert(cur_zobrist); // uninitialized entries are defaulted to 0
-    
-    int16_t tt_score = tt_lookup(cur_zobrist, &window, best_move, depth);
+
+    move_t tt_move = NO_MOVE;
+    int16_t tt_score = tt_lookup(cur_zobrist, &window, &tt_move, true, depth);
     if (tt_score != NO_TT_SCORE) {
+        *best_move = tt_move;
+        
         // Handle checkmate over 50-move rule
         if (!adjust_mate_score(&tt_score, 0) && is_50_move_rule(context->game_board)) {
             return 0;
@@ -193,7 +196,7 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
 
         if (!is_in_check(context->game_board, context->game_board->play_side ^ 1)) {
             int score;
-            if (i == 0) {
+            if (moves_searched == 0) {
                 score = -alpha_beta(context, (search_window) {.alpha = -window.beta, .beta = -window.alpha},
                                     eval_stack, true, true, depth - 1, 1);
             } else {
@@ -237,7 +240,7 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
                 if (score > window.alpha) {
                     node_type = PV_NODE;
                     window.alpha = score;
-                } else if (i == 0) {
+                } else if (moves_searched == 0) {
                     // Fail-low on root PV node
                     unmake_move(context->game_board, context->game_history, cur_move);
                     return best_score;
@@ -247,7 +250,7 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
             if (score >= window.beta) {
                 unmake_move(context->game_board, context->game_history, cur_move);
 
-                if (i != 0) {
+                if (moves_searched > 0) {
                     create_tt_entry(cur_zobrist, *best_move, best_score, static_eval, depth, context->age, CUT_NODE);
                 }
                 
@@ -296,7 +299,7 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
     zobrist_board cur_zobrist = context->game_history[context->game_board->halfmove_clock];
     assert(cur_zobrist); // uninitialized entries are defaulted to 0
     
-    int16_t tt_score = tt_lookup(cur_zobrist, &window, NULL, depth);
+    int16_t tt_score = tt_lookup(cur_zobrist, &window, NULL, false, depth);
     if (tt_score != NO_TT_SCORE) {
         // Handle checkmate over 50-move rule
         if (!adjust_mate_score(&tt_score, ply) && is_50_move_rule(context->game_board)) {
@@ -334,7 +337,7 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
     int16_t margin = (improving) ? IMPROVING_RFP_MARGIN * depth : RFP_MARGIN * depth;
 
     if (depth <= RFP_DEPTH_BOUND &&
-        window.beta <= INT16_MAX - margin && 
+        window.beta <= INT16_MAX - margin &&
         static_eval >= window.beta + margin &&
         !is_PV &&
         !in_check /*  && */
@@ -345,7 +348,7 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
     }
 
     // NMP
-    if (allow_null_move && !in_check && 
+    if (allow_null_move && !in_check &&
         (context->game_board->piece_bbs[KNIGHT][context->game_board->play_side] ||
          context->game_board->piece_bbs[BISHOP][context->game_board->play_side] ||
          context->game_board->piece_bbs[ROOK][context->game_board->play_side] ||
@@ -389,14 +392,13 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
 
         if (!is_in_check(context->game_board, context->game_board->play_side ^ 1)) {
             int score;
-            if (i == 0) {
+            if (moves_searched == 0) {
                 score = -alpha_beta(context, (search_window) {.alpha = -window.beta, .beta = -window.alpha},
                                     eval_stack, true, true, depth - 1, ply + 1);
             } else {
                 bool should_LMR = depth >= LMR_DEPTH_BOUND &&
                     !(is_capture(cur_move) || is_promotion(cur_move)) &&
-                    !in_check && !is_in_check(context->game_board, context->game_board->play_side) &&
-                    !is_PV;
+                    !in_check && !is_in_check(context->game_board, context->game_board->play_side);
 
                 if (should_LMR) {
                     int LMR_depth_index = (depth < LMR_MAX_DEPTH) ? depth : LMR_MAX_DEPTH - 1;
@@ -482,7 +484,8 @@ static int16_t quiesce(search_context *context, search_window window, tt_node_t 
     zobrist_board cur_zobrist = context->game_history[context->game_board->halfmove_clock];
     assert(cur_zobrist);
 
-    int16_t tt_score = tt_lookup(cur_zobrist, &window, NULL, 0);
+    move_t tt_move = NO_MOVE;
+    int16_t tt_score = tt_lookup(cur_zobrist, &window, &tt_move, false, 0);
     if (tt_score != NO_TT_SCORE) {
         adjust_mate_score(&tt_score, ply);
         return tt_score;
@@ -517,7 +520,7 @@ static int16_t quiesce(search_context *context, search_window window, tt_node_t 
         assert(cur_move != NO_MOVE);
 
         if (!is_capture(cur_move)) {
-            if (i == 0) continue;
+            if (cur_move == tt_move) continue;
             break;
         }
         
@@ -563,11 +566,15 @@ static int16_t quiesce(search_context *context, search_window window, tt_node_t 
  * the tranposition table if it can be used, and otherwise returns NO_TT_SCORE.
  * This function adjusts alpha and beta values as needed.
  */
-static int16_t tt_lookup(zobrist_board key, search_window *window, move_t *best_root_move, uint8_t depth) {
+static int16_t tt_lookup(zobrist_board key, search_window *window, move_t *tt_move, bool is_root, uint8_t depth) {
     tt_entry *cur_entry = get_tt_entry(key);
     if (in_tt(key)) {
         move_t node_move = get_tt_entry_move(*cur_entry);
         tt_node_t node_type = get_tt_entry_type(*cur_entry);
+
+        if (tt_move) {
+            *tt_move = node_move;
+        }
 
         if (get_tt_entry_depth(*cur_entry) >= depth) {
             int16_t node_score = get_tt_entry_score(*cur_entry);
@@ -575,14 +582,10 @@ static int16_t tt_lookup(zobrist_board key, search_window *window, move_t *best_
             if (node_type == PV_NODE ||
                 (node_type == CUT_NODE && node_score >= window->beta) ||
                 (node_type == ALL_NODE && node_score <= window->alpha)) {
-                if (best_root_move) {
-                    *best_root_move = node_move;
-                }
-                
                 return node_score;
-            } else if (node_type == CUT_NODE && node_score > window->alpha && best_root_move == NULL) {
+            } else if (node_type == CUT_NODE && node_score > window->alpha && !is_root) {
                 window->alpha = node_score;
-            } else if (node_type == ALL_NODE && node_score < window->beta && best_root_move == NULL) {
+            } else if (node_type == ALL_NODE && node_score < window->beta && !is_root) {
                 window->beta = node_score;
             }
         }
