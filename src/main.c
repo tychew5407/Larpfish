@@ -23,6 +23,7 @@
 #include "movegen.h"
 #include "evaluation.h"
 #include "search.h"
+#include "history.h"
 
 /* ENGINE DEFINITIONS */
 #define ENGINE_NAME "Larpfish 0.7"
@@ -182,6 +183,7 @@ static void handle_ucinewgame(char *args) {
     }
 
     init_tt(TT_size_MB);
+    init_history_table();
     search_age = 0;
 }
 

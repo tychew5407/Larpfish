@@ -17,7 +17,7 @@ static tt_val compact_tt_val(move_t best_move, int16_t score, int16_t eval, uint
 void init_tt(size_t size_MB) {
     assert(size_MB != 0);
     
-    TT.capacity = (size_MB * 1000000) / sizeof(tt_entry);
+    TT.capacity = (size_MB * 1024 * 1024) / sizeof(tt_entry);
     
     // Floor capacity to the nearest power of the 2
     size_t cap_MSB = 63 - __builtin_clzll(TT.capacity);

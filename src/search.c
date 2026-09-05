@@ -12,6 +12,7 @@
 #include "evaluation.h"
 #include "move_ordering.h"
 #include "transposition_table.h"
+#include "history.h"
 
 /* DEFINITIONS */
 #define CHECKMATE_EVAL (INT16_MAX - 1)
@@ -165,25 +166,32 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
         return tt_score;
     }
 
+    // Generate and order move list
     move_t move_list[MAX_MOVES];
-    int score_list[MAX_MOVES];
+    int32_t score_list[MAX_MOVES];
     size_t n_moves;
 
     generate_moves(move_list, &n_moves, context->game_board);
     score_moves(context->game_board, context->game_history, move_list, score_list, n_moves);
 
-    tt_node_t node_type = ALL_NODE;
-    int16_t best_score = INT16_MIN;
-
+    const side board_side = context->game_board->play_side;
+    const bool in_check = is_in_check(context->game_board, board_side);
+    
     // Setup eval_stack for improving
-    bool in_check = is_in_check(context->game_board, context->game_board->play_side);
     int16_t static_eval = evaluate(context->game_board);
     int16_t eval_stack[MAX_PLY];
 
     eval_stack[0] = (in_check) ? NO_EVAL : static_eval;
 
-    uint8_t moves_searched = 0;
-    
+    // Keep track of quiet moves searched for updating history
+    move_t quiet_moves_searched[MAX_MOVES];
+    unsigned int n_q_moves = 0; // # of quiet moves searched
+
+    // Values to keep track of during search
+    tt_node_t node_type = ALL_NODE;
+    int16_t best_score = INT16_MIN;
+    unsigned int moves_searched = 0;
+
     for (size_t i = 0; i < n_moves; i++) {
         move_t cur_move = get_next_move(move_list, score_list, n_moves);
         assert(cur_move != NO_MOVE);
@@ -194,14 +202,15 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
 
         make_move(context->game_board, context->game_history, cur_move);
 
-        if (!is_in_check(context->game_board, context->game_board->play_side ^ 1)) {
+        if (!is_in_check(context->game_board, board_side)) {
             int score;
+            const bool is_quiet = !(is_capture(cur_move) || is_promotion(cur_move));
+            
             if (moves_searched == 0) {
                 score = -alpha_beta(context, (search_window) {.alpha = -window.beta, .beta = -window.alpha},
                                     eval_stack, true, true, depth - 1, 1);
             } else {
-                bool should_LMR = depth >= LMR_DEPTH_BOUND &&
-                    !(is_capture(cur_move) || is_promotion(cur_move)) &&
+                bool should_LMR = depth >= LMR_DEPTH_BOUND && is_quiet &&
                     !in_check && !is_in_check(context->game_board, context->game_board->play_side);
 
                 if (should_LMR) {
@@ -248,13 +257,26 @@ static int16_t alpha_beta_root(search_context *context, search_window window, mo
             }
 
             if (score >= window.beta) {
+                // Fail-high
                 unmake_move(context->game_board, context->game_history, cur_move);
 
                 if (moves_searched > 0) {
                     create_tt_entry(cur_zobrist, *best_move, best_score, static_eval, depth, context->age, CUT_NODE);
                 }
+
+                // Update history table
+                const int32_t history_bonus = 300 * depth - 250;
+
+                update_history_table(board_side, cur_move, history_bonus);
+                
+                for (unsigned int i = 0; i < n_q_moves; i++) {
+                    update_history_table(board_side, quiet_moves_searched[i], -history_bonus);
+                }
                 
                 return best_score;
+            } else if (is_quiet) {
+                quiet_moves_searched[n_q_moves] = cur_move;
+                n_q_moves++;
             }
 
             moves_searched++;
@@ -326,11 +348,11 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
         return quiesce_score;
     }
 
+    const side board_side = context->game_board->play_side;
+    const bool in_check = is_in_check(context->game_board, board_side);
+    
     // Calculate improving
-    bool in_check = is_in_check(context->game_board, context->game_board->play_side);
-    
     eval_stack[ply] = (in_check) ? NO_EVAL : static_eval;
-    
     bool improving = static_eval_improving(eval_stack, ply);
     
     // RFP
@@ -339,20 +361,16 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
     if (depth <= RFP_DEPTH_BOUND &&
         window.beta <= INT16_MAX - margin &&
         static_eval >= window.beta + margin &&
-        !is_PV &&
-        !in_check /*  && */
-        /* tt_move != NO_MOVE && !is_capture(tt_move) && */
-        /* tt_node != PV_NODE */) {
-        //create_tt_entry(cur_zobrist, NO_MOVE, static_eval, static_eval, depth, context->age, CUT_NODE);
+        !is_PV && !in_check) {
         return static_eval;
     }
 
     // NMP
     if (allow_null_move && !in_check &&
-        (context->game_board->piece_bbs[KNIGHT][context->game_board->play_side] ||
-         context->game_board->piece_bbs[BISHOP][context->game_board->play_side] ||
-         context->game_board->piece_bbs[ROOK][context->game_board->play_side] ||
-         context->game_board->piece_bbs[QUEEN][context->game_board->play_side])) {
+        (context->game_board->piece_bbs[KNIGHT][board_side] ||
+         context->game_board->piece_bbs[BISHOP][board_side] ||
+         context->game_board->piece_bbs[ROOK][board_side] ||
+         context->game_board->piece_bbs[QUEEN][board_side])) {
         int reduced_depth = (depth >= NMP_REDUCTION) ? depth - NMP_REDUCTION : 0;
         
         make_null_move(context->game_board, context->game_history);
@@ -362,11 +380,11 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
         unmake_null_move(context->game_board, context->game_history);
         
         if (NMP_score >= window.beta) {
-            //create_tt_entry(cur_zobrist, NO_MOVE, NMP_score, static_eval, reduced_depth, context->age, CUT_NODE);
             return NMP_score;
         }
     }
 
+    // Generate and order move list
     move_t move_list[MAX_MOVES];
     int score_list[MAX_MOVES];
     size_t n_moves;
@@ -374,11 +392,15 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
     generate_moves(move_list, &n_moves, context->game_board);
     score_moves(context->game_board, context->game_history, move_list, score_list, n_moves);
 
+    // Keep track of quiet moves searched for updating history
+    move_t quiet_moves_searched[MAX_MOVES];
+    unsigned int n_q_moves = 0; // # of quiet moves searched
+
+    // Values to keep track of during search
     tt_node_t node_type = ALL_NODE;
     int16_t best_score = INT16_MIN;
     move_t best_move = NO_MOVE;
-
-    uint8_t moves_searched = 0;
+    unsigned int moves_searched = 0;
     
     for (size_t i = 0; i < n_moves; i++) {
         move_t cur_move = get_next_move(move_list, score_list, n_moves);
@@ -390,14 +412,15 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
         
         make_move(context->game_board, context->game_history, cur_move);
 
-        if (!is_in_check(context->game_board, context->game_board->play_side ^ 1)) {
+        if (!is_in_check(context->game_board, board_side)) {
             int score;
+            const bool is_quiet = !(is_capture(cur_move) || is_promotion(cur_move));
+            
             if (moves_searched == 0) {
                 score = -alpha_beta(context, (search_window) {.alpha = -window.beta, .beta = -window.alpha},
                                     eval_stack, true, true, depth - 1, ply + 1);
             } else {
-                bool should_LMR = depth >= LMR_DEPTH_BOUND &&
-                    !(is_capture(cur_move) || is_promotion(cur_move)) &&
+                bool should_LMR = depth >= LMR_DEPTH_BOUND && is_quiet &&
                     !in_check && !is_in_check(context->game_board, context->game_board->play_side);
 
                 if (should_LMR) {
@@ -440,11 +463,23 @@ static int16_t alpha_beta(search_context *context, search_window window, int16_t
             }
 
             if (score >= window.beta) {
+                // Fail-high
                 unmake_move(context->game_board, context->game_history, cur_move);
-
                 create_tt_entry(cur_zobrist, best_move, best_score, static_eval, depth, context->age, CUT_NODE);
+
+                // Update history table
+                const int32_t history_bonus = 300 * depth - 250;
+
+                update_history_table(board_side, cur_move, history_bonus);
+                
+                for (unsigned int i = 0; i < n_q_moves; i++) {
+                    update_history_table(board_side, quiet_moves_searched[i], -history_bonus);
+                }
                 
                 return best_score;
+            } else if (is_quiet) {
+                quiet_moves_searched[n_q_moves] = cur_move;
+                n_q_moves++;
             }
 
             moves_searched++;

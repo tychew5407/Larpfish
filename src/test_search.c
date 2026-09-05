@@ -20,12 +20,15 @@
 #include "movegen.h"
 #include "search.h"
 #include "transposition_table.h"
+#include "history.h"
 
-static int MAX_DEPTH = 8;
+#define DEFAULT_MAX_DEPTH 8
+#define TT_SIZE_MB 64
+
+static int MAX_DEPTH = DEFAULT_MAX_DEPTH;
 
 int main(int argc, char *argv[]) {
     init_attack_tables();
-    init_tt(64);
 
     char *file_path = argv[1];
     
@@ -54,6 +57,11 @@ int main(int argc, char *argv[]) {
     while (fgets(fen_str, MAX_FEN_LEN, FEN_file) != NULL) {
         fen_str[strcspn(fen_str, "\n")] = '\0';
         initialize_board(&board);
+
+        if (tt_exists()) free_tt();
+        init_tt(TT_SIZE_MB);
+
+        init_history_table();
 
         char *fen_ptr = fen_str;
         parse_fen(&board, fen_ptr);

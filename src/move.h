@@ -8,6 +8,7 @@
 
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include "definitions.h"
 #include "board_ascii.h"
 
