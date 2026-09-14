@@ -15,6 +15,12 @@
 #include "move.h"
 #include "zobrist.h"
 
+/* DEFINITIONS */
+
+/* The `search_context` struct defines information about a search that persists
+ * throughout the entire search tree -- it is the context of an entire given
+ * search operation.
+ */
 typedef struct {
     board *game_board;
     zobrist_board *game_history;
@@ -22,10 +28,24 @@ typedef struct {
     uint8_t age;
 } search_context;
 
+/* The `search_window` struct defines a simple alpha-beta window, the bounds
+ * of a given search node.
+ */
 typedef struct {
     int16_t alpha;
     int16_t beta;
 } search_window;
+
+/* The `search_node` struct defines information regarding a node in the current
+ * alpha-beta search tree.
+ */
+typedef struct {
+    search_window window;
+    uint8_t depth;
+    uint8_t ply;
+    bool is_PV;
+    bool allow_null_move;
+} search_node;
 
 /* This global atomic_bool is used for UCI-support, where there are instances in which
  * the search may need to exit prematurely.

@@ -12,7 +12,6 @@
 /* BOARD CONSTANTS */
 #define NUM_SQUARES 64
 #define SIDE_LEN 8
-#define SIDE_LEN_POWER 3 // SIDE_LEN log 2
 #define NUM_PIECES 6
 #define NUM_SIDES 2
 #define NUM_CASTLES 4
@@ -39,13 +38,13 @@
 
 /* SHIFT CONSTANTS */
 #define VERT_SHIFT SIDE_LEN
-#define VERT_SHIFT_POWER SIDE_LEN_POWER // VERT_SHIFT log 2
 #define HORIZ_SHIFT 1
 
 /* SEARCH CONSTANTS */
 #define MAX_MOVES 218
 #define MAX_HALFMOVES 100
 #define MAX_PLY 128
+#define KILLER_SLOTS 3 // # of moves in the killer moves list
 
 /* PIECE ENUMS */
 typedef enum {

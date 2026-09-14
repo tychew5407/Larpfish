@@ -37,7 +37,7 @@ void init_history_table();
  * corresponding history table entry according to the
  * history gravity formula.
  */
-static inline void update_history_table(side side, move_t move, int32_t bonus) {
+static inline void update_history_table(const side side, const move_t move, const int32_t bonus) {
     int32_t clamped_bonus;
 
     if (bonus < -MAX_HISTORY_SCORE) {
@@ -60,7 +60,7 @@ static inline void update_history_table(side side, move_t move, int32_t bonus) {
  * The `get_history_score` function outputs the score
  * of the corresponding history table entry.
  */
-static inline int16_t get_history_score(side side, move_t move) {
+static inline int16_t get_history_score(const side side, const move_t move) {
     return history_table[side][get_from(move)][get_to(move)];
 }
 

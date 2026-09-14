@@ -64,7 +64,7 @@ static inline int get_file(int square) {
  * rank (zero-based, i.e. 0-7).
  */
 static inline int get_rank(int square) {
-    return square >> SIDE_LEN_POWER;
+    return square / SIDE_LEN;
 }
 
 /* Function: bit_scan_foward

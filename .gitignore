@@ -1,9 +1,7 @@
 build/
-chess
-generate_zobrist
-perft
-test_search
-test_zobrist
+Larpfish
+tools/
+\#*\#
 *~
 callgrind.*
 src/NNUE.h

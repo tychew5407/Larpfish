@@ -12,9 +12,11 @@
 
 #include <inttypes.h>
 #include <limits.h>
+#include <stdbool.h>
 #include "board.h"
 #include "move.h"
 #include "zobrist.h"
+#include "evaluation.h"
 #include "transposition_table.h"
 #include "history.h"
 
@@ -22,7 +24,8 @@
 
 // Sentinel value used for marking moves that have already been searched.
 #define SEARCHED_SCORE INT32_MIN
-#define NON_CAPTURE_SCORE -MAX_HISTORY_SCORE
+#define KILLER_BASE 4
+#define HISTORY_BASE -MAX_HISTORY_SCORE
 #define TT_SCORE INT32_MAX
 
 /* Function: MVV_LVA
@@ -30,8 +33,11 @@
  * The `MVV_LVA` function is a helper function that implements the
  * MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic
  * for ordering capturing moves.
+ *
+ * Min MVV-LVA score: 100 * 16 - 900 = 700
+ * Max MVV-LVA score: 900 * 16 - 100 = 14300
  */
-static inline int32_t MVV_LVA(board *b, move_t move) {
+static inline int32_t MVV_LVA(const board *b, const move_t move) {
     return get_piece_val(piece_on(b, get_to(move))) * 16 - get_piece_val(piece_on(b, get_from(move))); 
 }
 
@@ -41,7 +47,9 @@ static inline int32_t MVV_LVA(board *b, move_t move) {
  * list of move_score's, and populates the scored_move list each with
  * the move_score associated with the move_t from the move_t list.
  */
-static inline void score_moves(board *b, zobrist_board *game_history, move_t *move_list, int32_t *score_list, int n_moves) {
+static inline void score_moves(const board *b, const zobrist_board game_history[],
+                               const move_t move_list[], int32_t score_list[],
+                               const move_t killer_list[KILLER_SLOTS], const int n_moves) {
     // Get TT move
     move_t TT_move = NO_MOVE;
     zobrist_board zb = game_history[b->halfmove_clock];
@@ -66,8 +74,22 @@ static inline void score_moves(board *b, zobrist_board *game_history, move_t *mo
             continue;
         }
 
+        // Killer
+        if (killer_list) {
+            bool killer_found = false;
+            for (int j = 0; j < KILLER_SLOTS; j++) {
+                if (cur_move == killer_list[j]) {
+                    score_list[i] = KILLER_BASE - j;
+                    killer_found = true;
+                    break;
+                }
+            }
+
+            if (killer_found) continue;
+        }
+
         // History
-        score_list[i] = NON_CAPTURE_SCORE + get_history_score(b->play_side, cur_move);
+        score_list[i] = HISTORY_BASE + get_history_score(b->play_side, cur_move);
     }
 }
 

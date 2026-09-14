@@ -26,7 +26,7 @@
 #include "history.h"
 
 /* ENGINE DEFINITIONS */
-#define ENGINE_NAME "Larpfish 0.7"
+#define ENGINE_NAME "Larpfish 1.0"
 #define ENGINE_AUTHOR "Tyler Chew"
 #define START_POS "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 #define DEFAULT_TT_SIZE 128

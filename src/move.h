@@ -55,7 +55,7 @@ typedef enum {
  * The `get_from` function takes a move_t and outputs its corresponding from
  * square.
  */
-static inline int get_from(move_t move) {
+static inline int get_from(const move_t move) {
     return (move & FROM_MASK) >> (SQ_MASK_LEN + FLAG_MASK_LEN);
 }
 
@@ -63,7 +63,7 @@ static inline int get_from(move_t move) {
  * -----------------
  * The `get_to` function takes a move_t and outputs its corresponding to square.
  */
-static inline int get_to(move_t move) {
+static inline int get_to(const move_t move) {
     return (move & TO_MASK) >> FLAG_MASK_LEN;
 }
 
@@ -71,7 +71,7 @@ static inline int get_to(move_t move) {
  * -------------------
  * The `get_flag` function takes a move_t and outputs its corresponding move_flag enum.
  */
-static inline move_flag get_flag(move_t move) {
+static inline move_flag get_flag(const move_t move) {
     return (move & FLAG_MASK);
 }
 
@@ -80,7 +80,7 @@ static inline move_flag get_flag(move_t move) {
  * The `set_from` function takes a move_t pointer `move` and new square and sets the from
  * square of `move` to the new square.
  */
-static inline void set_from(move_t *move, int square) {
+static inline void set_from(move_t *move, const int square) {
     *move &= ~FROM_MASK;
     *move |= square << (SQ_MASK_LEN + FLAG_MASK_LEN);
 }
@@ -90,7 +90,7 @@ static inline void set_from(move_t *move, int square) {
  * The `set_to` function takes a move_t pointer `move` and new square and sets the to
  * square of `move` to the new square.
  */
-static inline void set_to(move_t *move, int square) {
+static inline void set_to(move_t *move, const int square) {
     *move &= ~TO_MASK;
     *move |= square << (FLAG_MASK_LEN);
 }
@@ -100,7 +100,7 @@ static inline void set_to(move_t *move, int square) {
  * The `set_flag` function takes a move_t pointer `move` and move_flag and sets the move flag
  * of `move` to the corresponding move_flag.
  */
-static inline void set_flag(move_t *move, move_flag flag) {
+static inline void set_flag(move_t *move, const move_flag flag) {
     *move &= ~FLAG_MASK;
     *move |= flag;
 }
@@ -110,7 +110,7 @@ static inline void set_flag(move_t *move, move_flag flag) {
  * The `encode_move` function takes from/to squares and move_flag, outputs
  * the corresponding encoded move type.
  */
-static inline move_t encode_move(int from_sq, int to_sq, move_flag flag) {
+static inline move_t encode_move(const int from_sq, const int to_sq, const move_flag flag) {
     move_t result = 0;
 
     set_from(&result, from_sq);
@@ -125,7 +125,7 @@ static inline move_t encode_move(int from_sq, int to_sq, move_flag flag) {
  * The `is_capture` function takes a move and returns whether it is a
  * capture move.
  */
-static inline bool is_capture(move_t move) {
+static inline bool is_capture(const move_t move) {
     return get_flag(move) & CAPTURE_FLAG;
 }
 
@@ -134,7 +134,7 @@ static inline bool is_capture(move_t move) {
  * The `is_promotion` function takes a move and returns whether it is a
  * promotion move.
  */
-static inline bool is_promotion(move_t move) {
+static inline bool is_promotion(const move_t move) {
     return get_flag(move) & PROMO_FLAG;
 }
 

@@ -102,7 +102,7 @@ void unmake_move(board *b, zobrist_board *game_history, move_t move) {
         int capture_sq;
 
         if (move_f == EP_CAPTURE) {
-            capture_sq = (to_sq - VERT_SHIFT) + (move_s << VERT_SHIFT_POWER << 1);
+            capture_sq = (to_sq - VERT_SHIFT) + (move_s * VERT_SHIFT * 2);
         } else {
             capture_sq = to_sq;
         }
@@ -218,7 +218,7 @@ static void update_ep(board *b, zobrist_board *game_history, int to_sq, side mov
     
     
     if (move_f == DOUBLE_PAWN_PUSH) {
-        b->ep_square = (to_sq - VERT_SHIFT) + (move_s << VERT_SHIFT_POWER << 1);
+        b->ep_square = (to_sq - VERT_SHIFT) + (move_s * VERT_SHIFT * 2);
         toggle_zobrist_ep(&game_history[b->halfmove_clock], get_file(b->ep_square));
     } else {
         b->ep_square = NO_EN_PASSANT;
@@ -250,7 +250,7 @@ static void remove_captured_piece(board *b, zobrist_board *game_history, int to_
     int capture_sq;
 
     if (f == EP_CAPTURE) {
-        capture_sq = (to_sq - VERT_SHIFT) + (move_s << VERT_SHIFT_POWER << 1);
+        capture_sq = (to_sq - VERT_SHIFT) + (move_s * VERT_SHIFT * 2);
     } else {
         capture_sq = to_sq;
     }

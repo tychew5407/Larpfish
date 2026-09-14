@@ -48,7 +48,7 @@ typedef struct {
     
     side play_side;
     int ep_square;
-    unsigned char castling;
+    unsigned char castling; // WK WQ BK BQ
     unsigned int halfmove_clock;
     unsigned int fullmove_counter;
 } board;
