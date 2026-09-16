@@ -8,6 +8,8 @@ Written by Tyler Chew.
 ## Overview
 Larpfish is a UCI-compatible chess engine, written from scratch in C. Hosted online via [lichess-bot](https://github.com/lichess-bot-devs/lichess-bot): reaching 2100+ ELO after 2.2K online games as of writing.
 
+Larpfish's move generation reaches 25.55M nodes/sec from the starting position under Perft.
+
 Larpfish is currently run on an AMD Ryzen 5 2500U CPU.
 
 ## Building
@@ -43,6 +45,7 @@ Run the chess engine under a UCI-supported chess GUI, or directly via:
     - Quiescence search (Q-search)
     - Transposition table (TT)
     - Principal Variation Search (PVS)
+    - Aspiration Windows (AW)
     - Reverse Futility Pruning (RFP)
     - Null Move Pruning (NMP)
     - Late Move Reductions (LMR)
