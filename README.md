@@ -62,3 +62,6 @@ Perft testing is implemented to validate move generation, and SPRT is run via [f
 ## Next Steps/Known Limitations
 - NNUE evaluation
 - Further search pruning extensions
+
+## License
+Distributed under the MIT License. See [LICENSE.txt](LICENSE.txt) for more information.
