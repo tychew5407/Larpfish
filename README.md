@@ -11,9 +11,9 @@ Larpfish is a UCI-compatible chess engine, written from scratch in C. Hosted onl
 Larpfish is currently run on an AMD Ryzen 5 2500U CPU.
 
 ## Building
-This project uses GCC built-in intrinsics for bit counting/scanning, and thus requires a compiler that supports them. 
+This project requires a compiler with GCC-style built-in support with GNU extensions and POSIX threads. Developed and tested on WSL2 (Ubuntu) x86-64 with GCC.
 
-Build with gcc:
+Build with GCC:
 ```
 make
 ```
@@ -62,4 +62,3 @@ Perft testing is implemented to validate move generation, and SPRT is run via [f
 ## Next Steps/Known Limitations
 - NNUE evaluation
 - Further search pruning extensions
-- Cross-compiler compatibility
