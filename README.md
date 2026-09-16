@@ -1,5 +1,5 @@
 # Larpfish
-![Larpfish Logo](./Larpfish.png)
+<img src="./Larpfish.png" alt="Larpfish Logo" width="400">
 
 [Play against Larpfish on Lichess!](https://lichess.org/@/Larpfish/rated)
 
